@@ -1,0 +1,24 @@
+# Core Framework
+fastapi==0.115.4
+uvicorn[standard]==0.32.0
+
+# Data Validation
+pydantic==2.9.2
+pydantic-settings==2.6.1
+
+# Database
+asyncpg==0.30.0
+sqlalchemy==2.0.36
+
+# Redis
+redis==5.2.0
+
+# LLM and AI Agents
+langchain==0.3.7
+langchain-google-genai==2.0.4
+langchain-groq==0.2.1
+langgraph==0.2.45
+
+# Utilities
+python-dotenv==1.0.1
+python-multipart==0.0.12
