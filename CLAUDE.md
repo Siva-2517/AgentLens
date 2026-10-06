@@ -18,16 +18,16 @@ It reconstructs executions into traces and execution graphs and uses AI to inves
 ## Planned Stack
 
 - **Backend**: Python + FastAPI
-- **Database**: PostgreSQL
-- **Cache/queues**: Redis
+- **Database**: PostgreSQL (Neon cloud)
+- **Cache/queues**: Redis (Docker)
 - **AI/Agents**: LangGraph + LangChain
 - **LLM providers**: Gemini and Groq
 - **Frontend**: React + TypeScript
 - **Styling**: Tailwind CSS
 - **Graph visualization**: React Flow
-- **Vector search**: pgvector
+- **Vector search**: pgvector (available in Neon)
 - **Integration**: Python SDK + MCP
-- **Infrastructure**: Docker
+- **Infrastructure**: Docker (Redis only)
 - **Testing**: pytest for Python, Vitest/React Testing Library for frontend
 
 ## Architecture
@@ -108,9 +108,20 @@ Build in this order:
 
 ## Current Status
 
-The project has just started.
-
-**Do not assume that components are already implemented.**
+Phases 1 through 12 are complete and verified:
+- **Phase 1-6**: Foundation, AgentLens SDK, Event ingestion, PostgreSQL (Neon) storage, Demo AI agent, and End-to-end tracing verified.
+- **Phase 7**: Trace Reconstruction Engine (`ReconstructedTrace`, ordered event tree, execution metrics, `GET /api/v1/traces/{trace_id}`).
+- **Phase 8**: Execution Graph (`ExecutionGraph`, deterministic nodes and edges, `GET /api/v1/traces/{trace_id}/graph`).
+- **Phase 9**: React Observability Dashboard (`GET /api/v1/traces` summary listing, React Flow execution graph with waterfall layout, event details panel, developer-tool UI, 158 backend/sdk/demo tests + 23 frontend tests passing).
+- **Phase 10**: Real-Time Agent Execution Monitoring (Redis Pub/Sub event fan-out, WebSocket endpoint `WS /api/v1/ws/traces/{trace_id}` with token auth, post-persistence delivery with graceful degradation, React frontend live updates with incremental graph updates and preserved selection, `● Live` status indicator, 168 backend/sdk/demo tests + 29 frontend tests passing, verified with live Redis container, Neon PostgreSQL, and browser demo).
+- **Phase 11**: Deterministic Failure & Anomaly Detection (`FailureDetectionService`, 8 deterministic detection rules: explicit errors, unresolved retries, repeated tool calls, missing tool responses, missing LLM responses, invalid lifecycle, execution loops, high retry counts; configurable thresholds via `DetectionConfig`; `GET /api/v1/traces/{trace_id}/findings` endpoint; 194 backend/sdk/demo tests + 29 frontend tests passing).
+- **Phase 12**: AI Root-Cause Investigation (`AIInvestigationService`, `InvestigationLLMProvider` abstraction supporting Groq, Gemini, and Mock providers; compact sanitized context building; strict hallucination validation against ground-truth trace event and finding IDs; discrimination of earliest root cause from downstream symptoms; `GET /api/v1/traces/{trace_id}/investigation` endpoint; 217 backend/sdk/demo tests + 29 frontend tests passing).
+- **Phase 13**: Investigation Dashboard (Dedicated investigation panel with root-cause visual focus, confidence badge, interactive evidence inspection with cross-linking to execution graph, failure timeline, and actionable remediation recommendations).
+- **Phase 14**: Replay / Run Comparison (`TraceComparisonService`, side-by-side run comparison, structural and topological alignment, duration/status diffs, findings diffs, unified timeline, `GET /api/v1/traces/compare` endpoint, 49 frontend tests passing).
+- **Phase 15**: Historical Failure Search with pgvector (`FailureEmbeddingModel` in PostgreSQL/Neon, 768-dim embeddings via `EmbeddingProvider` abstraction supporting Gemini `models/text-embedding-004` and deterministic `MockEmbeddingProvider`, credential redaction on vector synthesis, `POST /api/v1/traces/{trace_id}/index` idempotent indexing, `GET /api/v1/failures/search` pgvector cosine similarity search, `HistoricalSearchView` React component with natural language queries, similarity badges, and trace navigation, 167 backend tests and 59 frontend tests passing).
+- **Phase 16**: Model Context Protocol (MCP) (`app.mcp.server`, standard stdio transport using official `mcp>=2.0.0` SDK, 7 read-only observability tools: `get_trace`, `get_execution_graph`, `get_trace_findings`, `investigate_trace`, `compare_traces`, `search_historical_failures`, `list_recent_traces`; read-only resource `agentlens://traces/{trace_id}`; zero logic duplication delegating directly to existing core services; recursive secret redaction; 192 backend tests, 43 SDK tests, and 59 frontend tests passing).
+- **Phase 17**: Security Hardening (Production API key validation, payload limits [max 500 events, 2MB body], identifier length constraints [max 256 chars], recursive secret redaction for env vars, connection strings, and tokens, CORS origin restrictions, OWASP security headers, prompt-injection isolation with XML delimiter guards; 210 backend tests, 43 SDK tests, and 59 frontend tests passing).
+- **Phase 18**: Final Testing & Validation (End-to-end multi-tier validation across live Neon PostgreSQL, pgvector cosine search, Redis Pub/Sub, Demo customer-support agent, controlled failure scenarios Cases A through F, trace reconstruction, execution graph, React dashboard flows, 7-tool MCP server, and Python SDK. Verified all 210 backend tests, 43 SDK tests, 59 frontend tests, 34 demo tests, and production build with zero blocking defects).
 
 ## Coding Rules
 
@@ -270,6 +281,87 @@ API_PORT=8000
 - **Backend**: `cd backend && uvicorn app.main:app --reload`
 - **Frontend**: `cd frontend && npm run dev`
 - **Full stack**: `docker-compose up`
+
+## Phase 16: Model Context Protocol (MCP)
+
+AgentLens exposes its observability and failure investigation capabilities through an official MCP server using standard stdio transport.
+
+### Running the MCP Server
+```bash
+python -m app.mcp.server
+```
+*(Run from the `backend/` directory or with `PYTHONPATH=backend`)*
+
+### Available MCP Tools
+All tools are strictly **read-only** and scrub sensitive tokens, credentials, and secrets:
+1. `get_trace(trace_id: str)`: Reconstructed trace summary, event counts, metadata, and ordered event sequence.
+2. `get_execution_graph(trace_id: str)`: Execution graph nodes and directed edges (lifecycle, LLM, tool calls, errors).
+3. `get_trace_findings(trace_id: str)`: Phase 11 deterministic failure and anomaly findings.
+4. `investigate_trace(trace_id: str)`: Phase 12 AI root-cause analysis, earliest failure, evidence, and recommended actions.
+5. `compare_traces(trace_a: str, trace_b: str)`: Phase 14 side-by-side run comparison, structural diffs, and aligned timeline.
+6. `search_historical_failures(query: str, limit: int, severity: str, rule: str, project: str)`: Phase 15 pgvector semantic search over historical failures.
+7. `list_recent_traces(project: str, limit: int, offset: int)`: Lightweight trace listing and pagination.
+
+### Connecting an MCP Client (e.g. Claude Desktop / Claude Code)
+```json
+{
+  "mcpServers": {
+    "agentlens": {
+      "command": "python",
+      "args": ["-m", "app.mcp.server"],
+      "cwd": "/path/to/AgentLens/backend",
+      "env": {
+        "DATABASE_URL": "postgresql+asyncpg://...",
+        "AGENTLENS_API_KEY": "test_api_key_123"
+      }
+    }
+  }
+}
+```
+
+## Phase 17: Security Hardening
+
+AgentLens is security-hardened for its current architecture across API ingestion, WebSocket monitoring, MCP tools, database persistence, and AI investigation boundaries:
+
+### 1. Authentication & Timing-Safe Verification
+- Endpoints enforce bearer token authentication (`Authorization: Bearer <key>`).
+- API keys are verified using constant-time comparison (`secrets.compare_digest`) to prevent timing attacks.
+- Configurable via `AGENTLENS_API_KEYS` environment variable (comma-separated).
+- WebSocket endpoints authenticate via query token (`?token=`) using constant-time verification.
+
+### 2. Input Validation & Request Bounding
+- Event ingestion enforces maximum batch sizes (`MAX_EVENT_BATCH_SIZE = 1000`).
+- String identifier fields (`trace_id`, `event_id`, `parent_event_id`, `name`) enforce strict length bounds (`<= 256` chars).
+- WebSocket trace IDs must match alphanumeric/safe regex `^[a-zA-Z0-9_\-\.]{1,128}$` to prevent channel injection.
+- Search queries are capped at 1000 characters and limit parameters bounded (1-50 for search, 1-500 for trace listings).
+
+### 3. Centralized Sensitive Data Redaction
+- Recursive redaction utility in `backend/app/services/redaction.py` automatically scrubs:
+  - Secrets, API keys (`sk-...`), Bearer tokens, passwords, and client secrets.
+  - Database connection strings (`postgresql://`, `postgres://`, `redis://`, etc.).
+- Normal operational metrics (e.g., `prompt_tokens`, `completion_tokens`, `total_tokens`, `token_count`, `cache_key`) are preserved.
+- Applied across telemetry ingestion, MCP responses, search synthesis, and error reporting.
+
+### 4. AI & Prompt Injection Security Boundaries
+- All external telemetry ingested into AI root-cause investigation is treated as untrusted data.
+- Telemetry context is wrapped in `<untrusted_telemetry_context>` delimiters.
+- System prompt instructs LLMs to never interpret embedded user prompts, tool outputs, or error messages as system directives or prompt overrides.
+
+### 5. Error Masking & Exception Safety
+- Internal database connection errors and stack traces are masked from HTTP responses.
+- Responses return generic 500 error messages while logging sanitized details internally.
+- MCP `_format_error` automatically sanitizes detail payloads.
+
+### 6. Security Headers & Configurable CORS
+- Standard defense headers added to all API responses:
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+  - `X-XSS-Protection: 1; mode=block`
+- Configurable CORS via `CORS_ORIGINS` environment variable (disallowing wildcard `*` when credentials are used).
+
+### 7. Known Architectural Limitations
+- **Frontend SPA API Key**: `VITE_AGENTLENS_API_KEY` in the React frontend is compiled into client-side JavaScript bundles and is publicly inspectable in user browsers. In production deployments, client dashboards should either authenticate through user session cookies via a backend reverse proxy or operate within a trusted internal network.
 
 ## Notes for Future Development
 
