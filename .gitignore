@@ -54,6 +54,7 @@ yarn-error.log*
 .pnpm-debug.log*
 node_modules/.vite/
 .vitest/
+*.tsbuildinfo
 
 # Frontend build
 frontend/dist/
