@@ -1,14 +1,33 @@
-"""Tests for database models and repositories."""
+"""Tests for database models and repositories (Phase 19 Multi-Tenant)."""
+
+import uuid
+from datetime import datetime
 
 import pytest
-from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import selectinload
 
-from app.db.models import TraceModel, EventModel, Base
-from app.db.repositories import TraceRepository, EventRepository
-from app.models.trace import TraceCreate
+from app.db.models import (
+    ApiKeyModel,
+    Base,
+    EventModel,
+    OrganizationMemberModel,
+    OrganizationModel,
+    ProjectModel,
+    TraceModel,
+    UserModel,
+)
+from app.db.repositories import (
+    ApiKeyRepository,
+    EventRepository,
+    OrganizationRepository,
+    ProjectRepository,
+    TraceRepository,
+    UserRepository,
+)
 from app.models.event import EventCreate, EventType
-
+from app.models.trace import TraceCreate
 
 # Test database URL - uses in-memory SQLite for testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -41,14 +60,133 @@ async def test_db(test_engine):
         await session.rollback()
 
 
-# Trace Model Tests
+@pytest.fixture
+async def sample_project(test_db):
+    """Fixture providing a persisted test organization and project."""
+    org = OrganizationModel(
+        name="Test Organization",
+        slug=f"test-org-{uuid.uuid4().hex[:8]}",
+    )
+    test_db.add(org)
+    await test_db.flush()
+
+    project = ProjectModel(
+        organization_id=org.id,
+        name="Test Project",
+        slug=f"test-project-{uuid.uuid4().hex[:8]}",
+        description="Sample project for testing",
+    )
+    test_db.add(project)
+    await test_db.commit()
+    await test_db.refresh(project)
+    return project
+
+
+# ==============================================================================
+# Multi-Tenant Model Tests (Phase 19A)
+# ==============================================================================
 
 @pytest.mark.asyncio
-async def test_create_trace_model(test_db):
-    """Test creating a trace model."""
+async def test_create_user_model(test_db):
+    """Test creating and retrieving a user model."""
+    user = UserModel(
+        email="developer@test.com",
+        hashed_password="hashed_secret_pw",
+        full_name="AgentLens Developer",
+        is_active=True,
+    )
+    test_db.add(user)
+    await test_db.commit()
+    await test_db.refresh(user)
+
+    assert user.id is not None
+    assert user.email == "developer@test.com"
+    assert user.hashed_password == "hashed_secret_pw"
+    assert user.full_name == "AgentLens Developer"
+    assert user.is_active is True
+    assert user.created_at is not None
+
+
+@pytest.mark.asyncio
+async def test_user_email_unique_constraint(test_db):
+    """Test that email addresses must be unique."""
+    u1 = UserModel(email="unique@test.com", hashed_password="pw1")
+    test_db.add(u1)
+    await test_db.commit()
+
+    u2 = UserModel(email="unique@test.com", hashed_password="pw2")
+    test_db.add(u2)
+    with pytest.raises(Exception):
+        await test_db.commit()
+
+
+@pytest.mark.asyncio
+async def test_create_organization_and_membership(test_db):
+    """Test organization creation, membership role, and relationships."""
+    user = UserModel(email="org_owner@test.com", hashed_password="pw")
+    test_db.add(user)
+    await test_db.flush()
+
+    org = OrganizationModel(name="Acme Corp", slug="acme-corp")
+    test_db.add(org)
+    await test_db.flush()
+
+    member = OrganizationMemberModel(
+        organization_id=org.id,
+        user_id=user.id,
+        role="owner",
+    )
+    test_db.add(member)
+    await test_db.commit()
+
+    # Load with relationship
+    stmt = (
+        select(OrganizationModel)
+        .options(selectinload(OrganizationModel.members))
+        .where(OrganizationModel.id == org.id)
+    )
+    res = await test_db.execute(stmt)
+    loaded_org = res.scalar_one()
+
+    assert loaded_org.name == "Acme Corp"
+    assert len(loaded_org.members) == 1
+    assert loaded_org.members[0].role == "owner"
+    assert loaded_org.members[0].user_id == user.id
+
+
+@pytest.mark.asyncio
+async def test_create_project_and_api_key(test_db, sample_project):
+    """Test project model and project-scoped API key creation."""
+    api_key = ApiKeyModel(
+        project_id=sample_project.id,
+        name="Development Agent Key",
+        key_prefix="al_live_abcd",
+        key_hash="hash_value_1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+        key_type="ingestion",
+        scopes=["ingest"],
+    )
+    test_db.add(api_key)
+    await test_db.commit()
+    await test_db.refresh(api_key)
+
+    assert api_key.id is not None
+    assert api_key.project_id == sample_project.id
+    assert api_key.key_prefix == "al_live_abcd"
+    assert api_key.is_revoked is False
+    assert api_key.created_at is not None
+
+
+# ==============================================================================
+# Trace & Event Model Tests (Updated with Project Ownership)
+# ==============================================================================
+
+@pytest.mark.asyncio
+async def test_create_trace_model(test_db, sample_project):
+    """Test creating a trace model with required project_id."""
     trace = TraceModel(
         trace_id="trace_test_123",
         name="test-agent",
+        project_id=sample_project.id,
         project_name="test-project",
         start_time=datetime.utcnow(),
         status="running",
@@ -61,6 +199,7 @@ async def test_create_trace_model(test_db):
 
     assert trace.id is not None
     assert trace.trace_id == "trace_test_123"
+    assert trace.project_id == sample_project.id
     assert trace.name == "test-agent"
     assert trace.project_name == "test-project"
     assert trace.status == "running"
@@ -69,14 +208,12 @@ async def test_create_trace_model(test_db):
 
 
 @pytest.mark.asyncio
-async def test_trace_model_relationships(test_db):
+async def test_trace_model_relationships(test_db, sample_project):
     """Test trace to events relationship."""
-    from sqlalchemy import select
-    from sqlalchemy.orm import selectinload
-
     trace = TraceModel(
         trace_id="trace_rel_123",
         name="test-agent",
+        project_id=sample_project.id,
         start_time=datetime.utcnow(),
         status="running",
         metadata_={},
@@ -106,25 +243,24 @@ async def test_trace_model_relationships(test_db):
     await test_db.commit()
 
     # Load trace with events eagerly
-    stmt = select(TraceModel).options(selectinload(TraceModel.events)).where(
-        TraceModel.trace_id == "trace_rel_123"
+    stmt = (
+        select(TraceModel)
+        .options(selectinload(TraceModel.events))
+        .where(TraceModel.trace_id == "trace_rel_123")
     )
     result = await test_db.execute(stmt)
-    trace = result.scalar_one()
+    loaded_trace = result.scalar_one()
 
-    # Access relationship
-    assert len(trace.events) == 2
+    assert len(loaded_trace.events) == 2
 
-
-# Event Model Tests
 
 @pytest.mark.asyncio
-async def test_create_event_model(test_db):
+async def test_create_event_model(test_db, sample_project):
     """Test creating an event model."""
-    # Create trace first
     trace = TraceModel(
         trace_id="trace_evt_123",
         name="test-agent",
+        project_id=sample_project.id,
         start_time=datetime.utcnow(),
         status="running",
         metadata_={},
@@ -158,11 +294,12 @@ async def test_create_event_model(test_db):
 
 
 @pytest.mark.asyncio
-async def test_event_with_parent(test_db):
+async def test_event_with_parent(test_db, sample_project):
     """Test event with parent_event_id."""
     trace = TraceModel(
         trace_id="trace_parent_123",
         name="test-agent",
+        project_id=sample_project.id,
         start_time=datetime.utcnow(),
         status="running",
         metadata_={},
@@ -197,190 +334,106 @@ async def test_event_with_parent(test_db):
     assert child_event.parent_event_id == "evt_parent"
 
 
+# ==============================================================================
 # Trace Repository Tests
+# ==============================================================================
 
 @pytest.mark.asyncio
-async def test_trace_repository_create(test_db):
-    """Test creating trace via repository."""
+async def test_trace_repo_create_and_get(test_db):
+    """Test creating and retrieving a trace via repository (auto-provisions project)."""
     repo = TraceRepository(test_db)
-
-    trace = TraceCreate(
-        trace_id="trace_repo_123",
-        name="repo-test-agent",
+    trace_data = TraceCreate(
+        trace_id="repo_trace_123",
+        name="repo-test",
         start_time=datetime.utcnow(),
         status="running",
-        metadata={"test": "data"},
     )
 
-    db_trace = await repo.create(trace, project_name="test-project")
-    await test_db.commit()
+    trace = await repo.create(trace_data, project_name="my-project")
+    assert trace.trace_id == "repo_trace_123"
+    assert trace.project_id is not None
+    assert trace.project_name == "my-project"
 
-    assert db_trace.trace_id == "trace_repo_123"
-    assert db_trace.name == "repo-test-agent"
-    assert db_trace.project_name == "test-project"
-    assert db_trace.status == "running"
-
-
-@pytest.mark.asyncio
-async def test_trace_repository_get_by_trace_id(test_db):
-    """Test getting trace by trace_id."""
-    repo = TraceRepository(test_db)
-
-    trace = TraceCreate(
-        trace_id="trace_get_123",
-        name="get-test-agent",
-        start_time=datetime.utcnow(),
-        status="running",
-        metadata={},
-    )
-
-    await repo.create(trace)
-    await test_db.commit()
-
-    found_trace = await repo.get_by_trace_id("trace_get_123")
-
-    assert found_trace is not None
-    assert found_trace.trace_id == "trace_get_123"
-    assert found_trace.name == "get-test-agent"
+    retrieved = await repo.get_by_trace_id("repo_trace_123")
+    assert retrieved is not None
+    assert retrieved.trace_id == "repo_trace_123"
+    assert retrieved.project_id == trace.project_id
 
 
 @pytest.mark.asyncio
-async def test_trace_repository_exists(test_db):
-    """Test checking if trace exists."""
+async def test_trace_repo_exists(test_db):
+    """Test checking if a trace exists."""
     repo = TraceRepository(test_db)
-
-    trace = TraceCreate(
-        trace_id="trace_exists_123",
-        name="exists-test-agent",
+    trace_data = TraceCreate(
+        trace_id="exists_test",
+        name="test",
         start_time=datetime.utcnow(),
-        status="running",
-        metadata={},
     )
+    await repo.create(trace_data)
 
-    await repo.create(trace)
-    await test_db.commit()
-
-    assert await repo.exists("trace_exists_123") is True
+    assert await repo.exists("exists_test") is True
     assert await repo.exists("nonexistent") is False
 
 
+@pytest.mark.asyncio
+async def test_trace_repo_get_with_events(test_db):
+    """Test getting trace with loaded events."""
+    trace_repo = TraceRepository(test_db)
+    event_repo = EventRepository(test_db)
+
+    await trace_repo.create(
+        TraceCreate(
+            trace_id="trace_with_events",
+            name="test",
+            start_time=datetime.utcnow(),
+        )
+    )
+
+    await event_repo.create(
+        EventCreate(
+            event_id="e1",
+            trace_id="trace_with_events",
+            event_type=EventType.LLM_CALL,
+            timestamp=datetime.utcnow(),
+        )
+    )
+
+    trace = await trace_repo.get_with_events("trace_with_events")
+    assert trace is not None
+    assert len(trace.events) == 1
+    assert trace.events[0].event_id == "e1"
+
+
+# ==============================================================================
 # Event Repository Tests
+# ==============================================================================
 
 @pytest.mark.asyncio
-async def test_event_repository_create(test_db):
-    """Test creating event via repository."""
-    # Create trace first
+async def test_event_repo_create_batch(test_db):
+    """Test creating batch of events."""
     trace_repo = TraceRepository(test_db)
-    trace = TraceCreate(
-        trace_id="trace_evt_repo_123",
-        name="test-agent",
-        start_time=datetime.utcnow(),
-        status="running",
-        metadata={},
-    )
-    await trace_repo.create(trace)
-    await test_db.commit()
-
-    # Create event
-    event_repo = EventRepository(test_db)
-    event = EventCreate(
-        event_id="evt_repo_123",
-        trace_id="trace_evt_repo_123",
-        event_type=EventType.LLM_CALL,
-        timestamp=datetime.utcnow(),
-        data={"model": "gpt-4"},
-        metadata={},
-    )
-
-    db_event = await event_repo.create(event, project_name="test-project")
-    await test_db.commit()
-
-    assert db_event.event_id == "evt_repo_123"
-    assert db_event.trace_id == "trace_evt_repo_123"
-    assert db_event.event_type == "LLM_CALL"
-    assert db_event.data == {"model": "gpt-4"}
-
-
-@pytest.mark.asyncio
-async def test_event_repository_get_by_trace_id(test_db):
-    """Test getting events by trace_id."""
-    # Create trace
-    trace_repo = TraceRepository(test_db)
-    trace = TraceCreate(
-        trace_id="trace_get_events_123",
-        name="test-agent",
-        start_time=datetime.utcnow(),
-        status="running",
-        metadata={},
-    )
-    await trace_repo.create(trace)
-    await test_db.commit()
-
-    # Create multiple events
     event_repo = EventRepository(test_db)
 
-    event1 = EventCreate(
-        event_id="evt_1",
-        trace_id="trace_get_events_123",
-        event_type=EventType.AGENT_START,
-        timestamp=datetime.utcnow(),
-        data={},
-        metadata={},
+    await trace_repo.create(
+        TraceCreate(
+            trace_id="batch_trace",
+            name="test",
+            start_time=datetime.utcnow(),
+        )
     )
-
-    event2 = EventCreate(
-        event_id="evt_2",
-        trace_id="trace_get_events_123",
-        event_type=EventType.LLM_CALL,
-        timestamp=datetime.utcnow(),
-        data={},
-        metadata={},
-    )
-
-    await event_repo.create(event1)
-    await event_repo.create(event2)
-    await test_db.commit()
-
-    # Get events
-    events = await event_repo.get_by_trace_id("trace_get_events_123")
-
-    assert len(events) == 2
-    assert events[0].event_id in ["evt_1", "evt_2"]
-    assert events[1].event_id in ["evt_1", "evt_2"]
-
-
-@pytest.mark.asyncio
-async def test_event_repository_create_batch(test_db):
-    """Test creating multiple events in batch."""
-    # Create trace
-    trace_repo = TraceRepository(test_db)
-    trace = TraceCreate(
-        trace_id="trace_batch_123",
-        name="test-agent",
-        start_time=datetime.utcnow(),
-        status="running",
-        metadata={},
-    )
-    await trace_repo.create(trace)
-    await test_db.commit()
-
-    # Create batch of events
-    event_repo = EventRepository(test_db)
 
     events = [
         EventCreate(
-            event_id=f"evt_batch_{i}",
-            trace_id="trace_batch_123",
-            event_type=EventType.LLM_CALL,
+            event_id=f"batch_e_{i}",
+            trace_id="batch_trace",
+            event_type=EventType.TOOL_CALL,
             timestamp=datetime.utcnow(),
-            data={},
-            metadata={},
         )
         for i in range(5)
     ]
 
     db_events = await event_repo.create_batch(events)
-    await test_db.commit()
-
     assert len(db_events) == 5
-    assert all(e.trace_id == "trace_batch_123" for e in db_events)
+
+    count = await event_repo.count_by_trace_id("batch_trace")
+    assert count == 5

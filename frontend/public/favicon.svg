@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="alGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#9333ea" />
+      <stop offset="50%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05" />
+    </linearGradient>
+    <radialGradient id="lensRing" cx="50%" cy="50%" r="50%">
+      <stop offset="60%" stop-color="#06b6d4" stop-opacity="0" />
+      <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.4" />
+    </radialGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#3b0764" flood-opacity="0.5" />
+    </filter>
+  </defs>
+
+  <!-- Background Squircle with AgentLens Brand Gradient -->
+  <rect width="64" height="64" rx="16" fill="url(#alGrad)" />
+
+  <!-- Inner border shine -->
+  <rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="url(#glowGrad)" stroke-width="1.5" />
+
+  <!-- Observability Aperture / Lens Focus Ring -->
+  <circle cx="32" cy="32" r="23" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="1.5" stroke-dasharray="10 4" />
+  <circle cx="32" cy="32" r="27" fill="url(#lensRing)" />
+
+  <!-- Brand Typography: AL -->
+  <g filter="url(#glow)">
+    <text x="32" y="42.5" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', 'Helvetica Neue', sans-serif" font-weight="900" font-size="27" text-anchor="middle" fill="#ffffff" letter-spacing="-1">AL</text>
+  </g>
+
+  <!-- Telemetry Node Indicator -->
+  <circle cx="48" cy="16" r="3.5" fill="#22d3ee" stroke="#ffffff" stroke-width="1.5" />
+</svg>

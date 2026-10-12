@@ -25,12 +25,22 @@ class AuthService:
         if self._override_keys is not None:
             return self._override_keys
 
+        is_dev = getattr(settings, "environment", "development").lower() in (
+            "development",
+            "dev",
+            "test",
+            "testing",
+            "local",
+        )
         configured = settings.agentlens_api_keys
         if not configured:
-            return {"test_api_key_123", "dev_key"}
+            return {"test_api_key_123", "dev_key"} if is_dev else set()
 
         keys = {k.strip() for k in configured.split(",") if k.strip()}
-        if not keys:
+        if not is_dev:
+            # In production/staging, purge known development keys
+            keys = {k for k in keys if k not in ("test_api_key_123", "dev_key")}
+        elif not keys:
             return {"test_api_key_123", "dev_key"}
         return keys
 

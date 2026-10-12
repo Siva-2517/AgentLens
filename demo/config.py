@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import logging
+import os
+from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
 
-load_dotenv()
+demo_env = Path(__file__).resolve().parent / ".env"
+load_dotenv(demo_env)
 
 # Set logging level
 logging.basicConfig(level=logging.INFO)
@@ -61,16 +64,24 @@ class DemoConfig:
 
         # Load from environment
         config.AGENTEST_API_KEY = (
-            "test_api_key_123"  # Default for demo
+            os.getenv("AGENTLENS_API_KEY")
+            or os.getenv("AGENTEST_API_KEY")
+            or "test_api_key_123"
+        )
+        config.AGENTEST_URL = (
+            os.getenv("AGENTLENS_API_URL")
+            or os.getenv("AGENTEST_URL")
+            or "http://localhost:8000"
+        )
+        config.AGENTEST_PROJECT = (
+            os.getenv("AGENTLENS_PROJECT_NAME")
+            or os.getenv("AGENTEST_PROJECT")
+            or "demo-project"
         )
 
-        config.AGENTEST_URL = "http://localhost:8000"
-        config.AGENTEST_PROJECT = "demo-project"
-
-        config.GEMINI_API_KEY = None  # Not required for mock LLM
-        config.GROQ_API_KEY = None  # Not required for mock LLM
-
-        config.USE_AGENTLENS = True
+        config.GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        config.GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+        config.USE_AGENTLENS = os.getenv("DEMO_USE_AGENTLENS", "true").lower() in ("true", "1", "yes")
 
         logger.info("Demo configuration loaded from environment")
 

@@ -337,7 +337,7 @@ async def test_security_headers_present_on_responses():
     """Every HTTP response includes standard defensive security headers."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get("/health")
+        resp = await client.get("/health/live")
         assert resp.status_code == 200
         assert resp.headers.get("X-Content-Type-Options") == "nosniff"
         assert resp.headers.get("X-Frame-Options") == "DENY"

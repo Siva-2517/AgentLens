@@ -188,7 +188,35 @@ async def run_server() -> None:
 
 
 def main() -> None:
-    """CLI entrypoint."""
+    """CLI entrypoint with optional project API key configuration.
+
+    Security Note:
+    Passing API keys via command-line arguments exposes them to process monitoring
+    tools (ps, /proc, Task Manager) and shell history. In production, configure
+    AGENTLENS_API_KEY or AGENTLENS_MCP_KEY in the process environment.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(description="AgentLens MCP Observability Server")
+    parser.add_argument(
+        "--api-key",
+        dest="api_key",
+        help=(
+            "Development-only project-scoped AgentLens API key (al_live_...). "
+            "WARNING: May be visible in OS process tables. Prefer AGENTLENS_API_KEY environment variable."
+        ),
+        default=None,
+    )
+    args, unknown = parser.parse_known_args()
+    if args.api_key:
+        logger.warning(
+            "Configuring API key via command-line argument '--api-key' may expose secrets in process tables. "
+            "Use AGENTLENS_API_KEY environment variable instead."
+        )
+        from app.mcp.auth import set_mcp_api_key
+
+        set_mcp_api_key(args.api_key)
+
     try:
         asyncio.run(run_server())
     except (KeyboardInterrupt, SystemExit):

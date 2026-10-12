@@ -27,23 +27,23 @@ export class RealtimeClient {
 
   constructor(options: RealtimeClientOptions) {
     this.traceId = options.traceId;
-    this.apiKey =
-      options.apiKey ||
-      (import.meta.env.VITE_AGENTLENS_API_KEY as string) ||
-      'test_api_key_123';
+    this.apiKey = options.apiKey || '';
 
-    // Construct WebSocket URL
+    // Construct WebSocket URL dynamically from env or window.location
     if (options.wsBaseUrl) {
       this.wsBaseUrl = options.wsBaseUrl;
     } else if (import.meta.env.VITE_WS_BASE_URL) {
       this.wsBaseUrl = import.meta.env.VITE_WS_BASE_URL as string;
+    } else if (import.meta.env.VITE_API_BASE_URL && String(import.meta.env.VITE_API_BASE_URL).startsWith('http')) {
+      const apiUrl = new URL(String(import.meta.env.VITE_API_BASE_URL));
+      const wsProto = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+      this.wsBaseUrl = `${wsProto}//${apiUrl.host}${apiUrl.pathname.replace(/\/$/, '')}/ws/traces`;
     } else if (typeof window !== 'undefined' && window.location) {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      // If vite proxy is used on port 5173, point directly to backend port 8000 or host
-      const host = window.location.port === '5173' ? 'localhost:8000' : window.location.host;
+      const host = window.location.port === '5173' ? `${window.location.hostname}:8000` : window.location.host;
       this.wsBaseUrl = `${protocol}//${host}/api/v1/ws/traces`;
     } else {
-      this.wsBaseUrl = 'ws://localhost:8000/api/v1/ws/traces';
+      this.wsBaseUrl = '/api/v1/ws/traces';
     }
 
     this.onMessage = options.onMessage;
@@ -59,7 +59,8 @@ export class RealtimeClient {
     this.isIntentionallyClosed = false;
     this.onStateChange('connecting');
 
-    const url = `${this.wsBaseUrl}/${encodeURIComponent(this.traceId)}?token=${encodeURIComponent(this.apiKey)}`;
+    const tokenParam = this.apiKey ? `?token=${encodeURIComponent(this.apiKey)}` : '';
+    const url = `${this.wsBaseUrl}/${encodeURIComponent(this.traceId)}${tokenParam}`;
 
     try {
       this.socket = new WebSocket(url);

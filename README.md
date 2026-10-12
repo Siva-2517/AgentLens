@@ -229,8 +229,8 @@ AgentLens is built with security hardening (Phase 17):
 ### Prerequisites
 - **Python 3.11+**
 - **Node.js 18+** & **npm**
-- **Docker** and **Docker Compose**
 - Free **Neon PostgreSQL** account ([neon.tech](https://neon.tech))
+- Free **Redis Cloud** account ([redis.io](https://redis.io))
 
 ### 1. Clone the Repository
 ```bash
@@ -238,22 +238,35 @@ git clone https://github.com/Siva-2517/AgentLens.git
 cd AgentLens
 ```
 
-### 2. Configure Environment
+### 2. Configure Dedicated Environments
+Each service is fully decoupled with its own dedicated `.env` file:
 ```bash
-cp .env.example .env
+# 1. Backend environment
+cp backend/.env.example backend/.env
+
+# 2. Frontend environment
+cp frontend/.env.example frontend/.env
+
+# 3. Demo agent environment (optional, for running live demo agent)
+cp demo/.env.example demo/.env
 ```
-Open `.env` and fill in your Neon database connection string and optional LLM keys:
+Fill in your Neon database connection string and Redis Cloud endpoint in `backend/.env`:
 ```env
 DATABASE_URL=postgresql+asyncpg://<username>:<password>@<ep-name>.neon.tech/agentlens?sslmode=require
-REDIS_URL=redis://localhost:6379/0
-AGENTLENS_API_KEYS=test_api_key_123,development_secret_key
+REDIS_URL=redis://default:<password>@<host>:<port>
 GROQ_API_KEY=gsk_your_groq_api_key
 GEMINI_API_KEY=AIzaSy_your_gemini_api_key
 ```
 
-### 3. Start Redis
-```bash
-docker-compose up -d redis
+### 3. Verify Cloud Infrastructure
+Test your Neon PostgreSQL and Redis Cloud endpoints directly:
+```powershell
+cd backend
+python -m venv venv
+.\venv\Scripts\activate      # On Linux/macOS: source venv/bin/activate
+pip install -r requirements.txt
+python verify_neon.py        # Verifies Neon PostgreSQL & pgvector
+python verify_redis.py       # Verifies Redis Cloud connection & Pub/Sub
 ```
 
 ### 4. Start the Backend API
@@ -284,21 +297,32 @@ python demo/demo.py
 ```
 
 ### 7. Stream Real-Time Events (Live Animation Test)
-Stream execution events step-by-step with 1.5-second pauses to observe live WebSocket node animations:
+Stream execution events step-by-step with 1.5-second pauses to observe live WebSocket node animations in the dashboard:
 ```powershell
+# Standard live stream (from project root)
 python backend/stream_live_demo.py
+
+# Or run from the demo directory
+cd demo
+python stream_live_demo.py
+
+# Simulate an error/timeout to test AI Root Cause Analysis & pgvector search:
+python backend/stream_live_demo.py --simulate-failure
+
+# Customize step pause duration (e.g. 2.0 seconds):
+python backend/stream_live_demo.py --interval 2.0
 ```
+Open **`http://localhost:5173`** and click the generated trace ID to observe nodes, links, and logs animating live in real time.
 
 ---
 
 ## 📡 Environment Variables
 
-### Backend (`.env`)
+### Backend (`backend/.env`)
 | Variable | Required | Description | Example |
 |---|---|---|---|
 | `DATABASE_URL` | **Yes** | Neon PostgreSQL connection string (asyncpg) | `postgresql+asyncpg://user:pass@ep-name.neon.tech/agentlens?sslmode=require` |
-| `REDIS_URL` | **Yes** | Redis connection URL for Pub/Sub | `redis://localhost:6379/0` |
-| `AGENTLENS_API_KEYS`| **Yes** | Comma-separated valid API authorization keys | `test_api_key_123,dev_key` |
+| `REDIS_URL` | **Yes** | Redis connection URL for Pub/Sub | `redis://default:pass@host:port` |
 | `GROQ_API_KEY` | Optional| API key for Groq LLM investigations | `gsk_...` (falls back to mock if omitted) |
 | `GEMINI_API_KEY` | Optional| API key for Gemini LLM and pgvector embeddings | `AIzaSy...` (falls back to mock if omitted) |
 | `CORS_ORIGINS` | Optional| Allowed browser origins | `http://localhost:5173,http://localhost:3000` |
@@ -307,9 +331,28 @@ python backend/stream_live_demo.py
 ### Frontend (`frontend/.env`)
 | Variable | Required | Description | Default |
 |---|---|---|---|
-| `VITE_API_URL` | Optional| Backend API base URL | `http://localhost:8000` |
-| `VITE_WS_URL` | Optional| Backend WebSocket base URL | `ws://localhost:8000` |
-| `VITE_AGENTLENS_API_KEY`| Optional| API authentication key sent by browser | `test_api_key_123` |
+| `VITE_API_BASE_URL` | Optional| Backend REST API base URL | `/api/v1` or `http://localhost:8000/api/v1` |
+| `VITE_WS_BASE_URL` | Optional| Backend WebSocket base URL | `ws://localhost:8000/api/v1/ws` |
+
+### Demo Agent (`demo/.env`)
+| Variable | Required | Description | Default |
+|---|---|---|---|
+| `AGENTLENS_API_URL` | **Yes** | Target AgentLens API server URL | `http://localhost:8000` |
+| `AGENTLENS_API_KEY` | **Yes** | Live API Key created in Dashboard (`al_live_...`) | `al_live_...` |
+| `AGENTLENS_PROJECT_NAME` | Optional| Project to attach traces to | `Default Project` |
+
+### Python SDK (`agentlens`)
+The SDK is a pure library that does not depend on any `.env` file on disk. Configure via constructor parameters or process environment variables:
+```python
+from agentlens import AgentLens
+
+# Constructor parameters (recommended):
+client = AgentLens(
+    api_url="http://localhost:8000",
+    api_key="al_live_...",
+    project_name="Customer Support"
+)
+```
 
 ---
 
@@ -412,11 +455,21 @@ AgentLens/
 │   ├── quick_test.py        # Fast offline tool and graph smoke tester
 │   └── pytest.ini
 │
-├── docker-compose.yml       # Production-aligned Redis 7 container
 ├── .env.example             # Sanitized environment variable template
 ├── CLAUDE.md                # Engineering principles and architectural guide
 └── README.md
 ```
+
+---
+
+## 🚀 Production Cloud Deployment
+
+AgentLens is architected for zero-docker cloud deployment:
+- **Frontend Dashboard**: [Vercel](https://vercel.com) (configured via [`frontend/vercel.json`](frontend/vercel.json))
+- **Backend API & WebSockets**: [Render](https://render.com) (configured via [`render.yaml`](render.yaml))
+- **Database & Vector Search**: [Neon Serverless PostgreSQL](https://neon.tech) (`pgvector`)
+- **Pub/Sub & Event Cache**: [Redis Cloud](https://redis.io/cloud) or Upstash
+- **Complete Step-by-Step Guide**: See **[Production Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** for detailed setup, CORS configuration, environment variables, and verification.
 
 ---
 

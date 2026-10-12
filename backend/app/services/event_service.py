@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.repositories import EventRepository
+from app.db.repositories import EventRepository, TraceRepository
 from app.models.event import EventCreate, EventResponse
 
 logger = logging.getLogger(__name__)
@@ -40,6 +40,21 @@ class EventService:
             f"(type: {event.event_type}, project: {project_name})"
         )
 
+        # If AGENT_END, update Trace status and end_time in DB
+        if db_event.event_type == "AGENT_END":
+            try:
+                trace_repo = TraceRepository(db)
+                status_val = "completed"
+                if isinstance(db_event.data, dict) and db_event.data.get("status") in ("failed", "error"):
+                    status_val = "failed"
+                await trace_repo.update_status(
+                    trace_id=db_event.trace_id,
+                    status=status_val,
+                    end_time=db_event.timestamp,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to update trace status on AGENT_END for {db_event.trace_id}: {e}")
+
         # Publish real-time event notification (failure-resilient)
         try:
             from app.models.realtime import (
@@ -64,11 +79,14 @@ class EventService:
             await realtime_publisher.publish(db_event.trace_id, event_msg)
 
             if db_event.event_type == "AGENT_END":
+                status_val = "completed"
+                if isinstance(db_event.data, dict) and db_event.data.get("status") in ("failed", "error"):
+                    status_val = "failed"
                 await realtime_publisher.publish(
                     db_event.trace_id,
                     TraceCompletedMessage(
                         trace_id=db_event.trace_id,
-                        status="completed",
+                        status=status_val,
                         end_time=db_event.timestamp,
                     ),
                 )
@@ -110,6 +128,22 @@ class EventService:
             f"Ingested batch of {len(events)} events (project: {project_name})"
         )
 
+        # Update trace status in DB for any AGENT_END events in batch
+        trace_repo = TraceRepository(db)
+        for db_event in db_events:
+            if db_event.event_type == "AGENT_END":
+                try:
+                    status_val = "completed"
+                    if isinstance(db_event.data, dict) and db_event.data.get("status") in ("failed", "error"):
+                        status_val = "failed"
+                    await trace_repo.update_status(
+                        trace_id=db_event.trace_id,
+                        status=status_val,
+                        end_time=db_event.timestamp,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update trace status on batch AGENT_END for {db_event.trace_id}: {e}")
+
         # Publish real-time notifications for each ingested event (failure-resilient)
         try:
             from app.models.realtime import (
@@ -135,11 +169,14 @@ class EventService:
                 await realtime_publisher.publish(db_event.trace_id, event_msg)
 
                 if db_event.event_type == "AGENT_END":
+                    status_val = "completed"
+                    if isinstance(db_event.data, dict) and db_event.data.get("status") in ("failed", "error"):
+                        status_val = "failed"
                     await realtime_publisher.publish(
                         db_event.trace_id,
                         TraceCompletedMessage(
                             trace_id=db_event.trace_id,
-                            status="completed",
+                            status=status_val,
                             end_time=db_event.timestamp,
                         ),
                     )

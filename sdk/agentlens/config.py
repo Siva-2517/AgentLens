@@ -1,5 +1,4 @@
-"""AgentLens SDK configuration."""
-
+import os
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -11,15 +10,15 @@ class AgentLensConfig(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
     api_url: str = Field(
-        default="http://localhost:8000",
+        default_factory=lambda: os.getenv("AGENTLENS_API_URL", "http://localhost:8000"),
         description="AgentLens API base URL",
     )
     api_key: Optional[str] = Field(
-        default=None,
-        description="API key for authentication (optional for now)",
+        default_factory=lambda: os.getenv("AGENTLENS_API_KEY"),
+        description="API key for authentication (al_live_...)",
     )
     project_name: Optional[str] = Field(
-        default=None,
+        default_factory=lambda: os.getenv("AGENTLENS_PROJECT_NAME"),
         description="Project name for trace organization",
     )
     enabled: bool = Field(

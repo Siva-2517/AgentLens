@@ -202,6 +202,8 @@ class FailureSearchService:
         severity: Optional[str] = None,
         rule: Optional[str] = None,
         project_name: Optional[str] = None,
+        project_id: Optional[str] = None,
+        project_ids: Optional[list[str]] = None,
     ) -> HistoricalSearchResponse:
         """Perform semantic similarity search for historical failures.
 
@@ -212,6 +214,8 @@ class FailureSearchService:
             severity: Optional filter by severity (critical, error, warning, info).
             rule: Optional filter by finding rule code.
             project_name: Optional filter by project name.
+            project_id: Optional exact project ID filter.
+            project_ids: Optional list of allowed project IDs for tenant isolation.
 
         Returns:
             HistoricalSearchResponse with ranked matching historical failures.
@@ -231,6 +235,8 @@ class FailureSearchService:
             severity=severity,
             rule=rule,
             project_name=project_name,
+            project_id=project_id,
+            project_ids=project_ids,
         )
 
         results: List[HistoricalFailureSearchResult] = []

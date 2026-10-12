@@ -289,9 +289,16 @@ class AIInvestigationService:
         # 5. Build compact investigation context
         context = self.build_context(trace, graph, findings)
 
-        # 6. Call active LLM provider
+        # 6. Call active LLM provider with bounded timeout
+        import asyncio
+        from app.config import settings
         active_provider = provider or self.get_provider()
-        raw_output = await active_provider.investigate(context)
+        timeout_sec = getattr(settings, "investigation_timeout_seconds", 30.0)
+        try:
+            raw_output = await asyncio.wait_for(active_provider.investigate(context), timeout=timeout_sec)
+        except asyncio.TimeoutError as e:
+            logger.error(f"Investigation timed out after {timeout_sec}s for trace '{trace_id}'")
+            raise RuntimeError(f"Investigation execution timed out after {timeout_sec}s.") from e
 
         # 7. Validate LLM output against ground truth trace and findings
         self.validate_llm_output(raw_output, trace, findings)

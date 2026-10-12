@@ -1,8 +1,19 @@
+import { useState, useRef, useEffect } from 'react';
+import { ProjectBrief, OrganizationBrief, User } from '../../types/auth';
+
 interface HeaderProps {
   apiStatus: 'healthy' | 'checking' | 'offline';
   selectedTraceId: string | null;
   activeView?: 'trace' | 'compare' | 'search';
   onSelectView?: (view: 'trace' | 'compare' | 'search') => void;
+  // Phase 19D Multi-Tenant Project & Auth Props
+  projects?: ProjectBrief[];
+  selectedProject?: ProjectBrief | null;
+  onSelectProject?: (project: ProjectBrief) => void;
+  user?: User | null;
+  organization?: OrganizationBrief | null;
+  onOpenProjectSettings?: () => void;
+  onLogout?: () => void;
 }
 
 export function Header({
@@ -10,9 +21,30 @@ export function Header({
   selectedTraceId,
   activeView = 'trace',
   onSelectView,
+  projects = [],
+  selectedProject = null,
+  onSelectProject,
+  user = null,
+  organization = null,
+  onOpenProjectSettings,
+  onLogout,
 }: HeaderProps) {
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close user dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
-    <header className="h-14 bg-slate-950 border-b border-slate-800 px-4 flex items-center justify-between shrink-0 shadow-md">
+    <header className="h-14 bg-slate-950 border-b border-slate-800 px-4 flex items-center justify-between shrink-0 shadow-md z-30 relative">
       <div className="flex items-center gap-3">
         {/* Logo and Product Title */}
         <div className="flex items-center gap-2">
@@ -30,8 +62,43 @@ export function Header({
           </div>
         </div>
 
+        {/* Phase 19D Project Selector */}
+        {projects.length > 0 && selectedProject && (
+          <div className="hidden lg:flex items-center ml-2 pl-3 border-l border-slate-800">
+            <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg text-xs">
+              <span className="text-slate-500 font-mono text-[11px]">Project:</span>
+              <select
+                data-testid="project-selector"
+                value={selectedProject.id}
+                onChange={(e) => {
+                  const target = projects.find((p) => p.id === e.target.value);
+                  if (target && onSelectProject) {
+                    onSelectProject(target);
+                  }
+                }}
+                className="bg-transparent text-slate-200 font-semibold text-xs focus:outline-none cursor-pointer pr-1"
+                aria-label="Select Project"
+              >
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id} className="bg-slate-900 text-slate-100">
+                    {p.name} ({p.slug})
+                  </option>
+                ))}
+              </select>
+              {organization && (
+                <span
+                  data-testid="org-badge"
+                  className="text-[10px] px-1.5 py-0.2 rounded bg-purple-950/60 border border-purple-800/80 text-purple-300 ml-1"
+                >
+                  {organization.name}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {selectedTraceId && activeView === 'trace' && (
-          <div className="hidden md:flex items-center gap-2 ml-4 pl-4 border-l border-slate-800 text-xs">
+          <div className="hidden xl:flex items-center gap-2 ml-2 pl-3 border-l border-slate-800 text-xs">
             <span className="text-slate-500 font-mono">Viewing:</span>
             <span className="text-slate-200 font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
               {selectedTraceId}
@@ -80,7 +147,22 @@ export function Header({
         </button>
       </div>
 
+      {/* Right Controls: API Status, API Keys, User Menu */}
       <div className="flex items-center gap-3 text-xs">
+        {/* API Keys Shortcut */}
+        {selectedProject && onOpenProjectSettings && (
+          <button
+            type="button"
+            data-testid="btn-open-project-settings"
+            onClick={onOpenProjectSettings}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition"
+            title="Manage Project API Keys"
+          >
+            <span>🔑</span>
+            <span className="hidden sm:inline">API Keys</span>
+          </button>
+        )}
+
         {/* Backend health status pill */}
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-900 border border-slate-800">
           <span
@@ -96,6 +178,76 @@ export function Header({
             API: <span className="text-slate-200 font-semibold">{apiStatus}</span>
           </span>
         </div>
+
+        {/* User Profile & Logout Dropdown */}
+        {user && (
+          <div className="relative" ref={userMenuRef}>
+            <button
+              type="button"
+              data-testid="btn-user-menu"
+              onClick={() => setIsUserMenuOpen((prev) => !prev)}
+              className="flex items-center gap-2 p-1 pl-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 transition"
+            >
+              <div className="w-5 h-5 rounded-full bg-purple-700 text-white font-bold text-[10px] flex items-center justify-center">
+                {user.email ? user.email[0].toUpperCase() : 'U'}
+              </div>
+              <span className="hidden md:inline text-xs font-medium max-w-[120px] truncate">
+                {user.full_name || user.email.split('@')[0]}
+              </span>
+              <span className="text-slate-500 text-[10px]">▼</span>
+            </button>
+
+            {isUserMenuOpen && (
+              <div
+                data-testid="user-dropdown-menu"
+                className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-2 z-50 text-xs"
+              >
+                <div className="px-3 py-2 border-b border-slate-800/80">
+                  <p className="font-semibold text-slate-100 truncate">{user.full_name || 'User'}</p>
+                  <p className="text-slate-400 font-mono text-[11px] truncate">{user.email}</p>
+                  {organization && (
+                    <div className="mt-1 flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500">Org:</span>
+                      <span className="text-[10px] text-purple-300 font-medium">
+                        {organization.name} ({organization.role})
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {onOpenProjectSettings && (
+                  <button
+                    type="button"
+                    data-testid="menu-item-api-keys"
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      onOpenProjectSettings();
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-slate-800 text-slate-200 flex items-center gap-2 transition"
+                  >
+                    <span>🔑</span>
+                    <span>Project API Keys</span>
+                  </button>
+                )}
+
+                {onLogout && (
+                  <button
+                    type="button"
+                    data-testid="btn-logout"
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      onLogout();
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-rose-950/40 text-rose-300 hover:text-rose-200 flex items-center gap-2 transition border-t border-slate-800/60 mt-1"
+                  >
+                    <span>🚪</span>
+                    <span>Sign Out</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );

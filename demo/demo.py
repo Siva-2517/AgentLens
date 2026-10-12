@@ -21,6 +21,12 @@ if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
+from dotenv import load_dotenv
+
+# Load demo/.env strictly
+demo_env = Path(__file__).resolve().parent / ".env"
+load_dotenv(demo_env)
+
 from demo.agent.runner import DemoAgentRunner
 
 
@@ -31,13 +37,8 @@ async def main():
     print("=" * 60)
     print()
 
-    # Initialize runner
-    runner = DemoAgentRunner(
-        api_url="http://localhost:8000",
-        api_key="test_api_key_123",
-        project_name="demo-project",
-        use_agentlens=True,
-    )
+    # Initialize runner from environment variables
+    runner = DemoAgentRunner()
 
     # Example queries
     examples = [

@@ -55,12 +55,33 @@ SAFE_METRIC_KEYS: Set[str] = {
 
 # Regex patterns for sensitive string contents
 DB_URL_PATTERN = re.compile(
-    r"(postgresql(?:\+asyncpg)?|postgres|mysql|mongodb|redis):\/\/[^\s\"'<>]+",
+    r"(postgresql(?:\+asyncpg)?|postgres|mysql|mongodb|rediss?):\/\/[^\s\"'<>]+",
     re.IGNORECASE,
 )
 BEARER_PATTERN = re.compile(r"bearer\s+[a-zA-Z0-9_\-\.]+", re.IGNORECASE)
+JWT_PATTERN = re.compile(r"eyJ[a-zA-Z0-9_\-]{10,}\.eyJ[a-zA-Z0-9_\-]{10,}\.[a-zA-Z0-9_\-]+")
 SK_KEY_PATTERN = re.compile(r"sk-[a-zA-Z0-9_\-]{8,}")
+AL_KEY_PATTERN = re.compile(r"al_(?:live|test)_[a-zA-Z0-9_\-]+", re.IGNORECASE)
 API_KEY_QUERY_PATTERN = re.compile(r"(?:api[_-]?key|token)=[^&\s]+", re.IGNORECASE)
+PASSWORD_ASSIGNMENT_PATTERN = re.compile(
+    r"(?:password|passwd|secret|jwt_secret_key)\s*[:=]\s*['\"]?[^\s,'\"]+['\"]?",
+    re.IGNORECASE,
+)
+
+
+def mask_sensitive_text(val: str) -> str:
+    """Mask credentials, tokens, and connection strings from arbitrary text or log records."""
+    if not val or not isinstance(val, str):
+        return str(val) if val is not None else ""
+
+    text = DB_URL_PATTERN.sub("[REDACTED_CONNECTION_URL]", val)
+    text = JWT_PATTERN.sub("[REDACTED_JWT]", text)
+    text = BEARER_PATTERN.sub("Bearer [REDACTED_TOKEN]", text)
+    text = AL_KEY_PATTERN.sub("[REDACTED_API_KEY]", text)
+    text = SK_KEY_PATTERN.sub("[REDACTED_API_KEY]", text)
+    text = API_KEY_QUERY_PATTERN.sub("api_key=[REDACTED]", text)
+    text = PASSWORD_ASSIGNMENT_PATTERN.sub("password=[REDACTED]", text)
+    return text
 
 
 def is_sensitive_key(key: Any) -> bool:
@@ -98,8 +119,8 @@ def sanitize_string(val: str) -> str:
     if "postgresql://" in lower_val or "postgres://" in lower_val or "redis://" in lower_val or "mysql://" in lower_val or "mongodb://" in lower_val:
         return "[REDACTED_DB_URL]"
 
-    # 2. Bearer tokens, API keys, secrets
-    if "bearer " in lower_val or "sk-" in val or "api_key=" in lower_val or "apikey=" in lower_val:
+    # 2. Bearer tokens, API keys, secrets (including AgentLens al_live_ keys)
+    if "bearer " in lower_val or "sk-" in val or "al_live_" in lower_val or "api_key=" in lower_val or "apikey=" in lower_val:
         return "[REDACTED_SECRET]"
 
     return val
@@ -129,7 +150,7 @@ def sanitize_telemetry(val: Any) -> Any:
 
 
 def mask_connection_string(val: str) -> str:
-    """Safely mask connection strings in error messages and logs."""
+    """Safely mask connection strings and secrets in error messages and logs."""
     if not val:
         return val
-    return DB_URL_PATTERN.sub("[REDACTED_CONNECTION_URL]", str(val))
+    return mask_sensitive_text(str(val))

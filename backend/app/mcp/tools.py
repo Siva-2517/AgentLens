@@ -9,18 +9,27 @@ Read-only observability tools exposed via Model Context Protocol:
 6. search_historical_failures
 7. list_recent_traces
 
-All tools strictly reuse existing AgentLens domain services.
-No business logic is duplicated.
-No write operations are permitted.
+All tools strictly enforce multi-tenant authorization (Phase 19E):
+- Authenticated project scope enforced on every tool call.
+- Trace ownership verified before returning data (Anti-IDOR: 404 trace_not_found).
+- Cross-project comparisons strictly rejected without leaking resource existence.
+- Vector and historical failure searches restricted to the authorized project.
+- Attempts to override authorized project via arguments rejected (403 forbidden).
+- Credential and secret redaction on all outputs.
+- No write or state-mutating operations permitted.
 """
 
 from contextlib import asynccontextmanager
 import logging
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models import ProjectModel
+from app.db.repositories import ProjectRepository, TraceRepository
 from app.db.session import AsyncSessionLocal
+from app.mcp.auth import MCPPrincipal, resolve_mcp_principal
 from app.mcp.redaction import sanitize_for_mcp
 from app.services.execution_graph_service import execution_graph_service
 from app.services.failure_detection_service import failure_detection_service
@@ -73,6 +82,40 @@ def _format_error(error_code: str, message: str, detail: Optional[Any] = None) -
     return err
 
 
+async def _verify_trace_tenant_access(
+    trace_id: str,
+    principal: MCPPrincipal,
+    db: AsyncSession,
+) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    """Verify trace ownership against authenticated MCP principal.
+
+    Anti-IDOR guarantee: Non-existent traces and unauthorized tenant traces return
+    the exact same structured trace_not_found error, hiding resource existence.
+    """
+    trace_repo = TraceRepository(db)
+    trace_model = await trace_repo.get_by_trace_id(trace_id)
+
+    if trace_model and trace_model.project_id != principal.project_id:
+        return False, _format_error("trace_not_found", f"Trace '{trace_id}' not found.")
+
+    if not trace_model and not principal.is_legacy_dev:
+        return False, _format_error("trace_not_found", f"Trace '{trace_id}' not found.")
+
+    return True, None
+
+
+async def _resolve_project(project_str: str, db: AsyncSession) -> Optional[ProjectModel]:
+    """Resolve project by ID, slug, or name."""
+    clean = project_str.strip()
+    stmt = select(ProjectModel).where(
+        (ProjectModel.id == clean)
+        | (ProjectModel.slug == clean.lower())
+        | (ProjectModel.name == clean)
+    )
+    res = await db.execute(stmt)
+    return res.scalar_one_or_none()
+
+
 async def get_trace_handler(trace_id: str) -> Dict[str, Any]:
     """Retrieve structured trace summary and reconstructed execution flow."""
     clean_id = (trace_id or "").strip()
@@ -81,6 +124,15 @@ async def get_trace_handler(trace_id: str) -> Dict[str, Any]:
 
     try:
         async with get_db_session() as db:
+            principal, auth_err = await resolve_mcp_principal(db)
+            if auth_err:
+                return auth_err
+
+            # Verify tenant ownership
+            allowed, err = await _verify_trace_tenant_access(clean_id, principal, db)
+            if not allowed:
+                return err or _format_error("trace_not_found", f"Trace '{clean_id}' not found.")
+
             trace = await trace_reconstruction_service.reconstruct_trace(clean_id, db)
 
         # Build compact, structured machine-readable trace
@@ -131,6 +183,15 @@ async def get_execution_graph_handler(trace_id: str) -> Dict[str, Any]:
 
     try:
         async with get_db_session() as db:
+            principal, auth_err = await resolve_mcp_principal(db)
+            if auth_err:
+                return auth_err
+
+            # Verify tenant ownership
+            allowed, err = await _verify_trace_tenant_access(clean_id, principal, db)
+            if not allowed:
+                return err or _format_error("trace_not_found", f"Trace '{clean_id}' not found.")
+
             graph = await execution_graph_service.get_execution_graph(clean_id, db)
 
         return sanitize_for_mcp({
@@ -176,6 +237,15 @@ async def get_trace_findings_handler(trace_id: str) -> Dict[str, Any]:
 
     try:
         async with get_db_session() as db:
+            principal, auth_err = await resolve_mcp_principal(db)
+            if auth_err:
+                return auth_err
+
+            # Verify tenant ownership
+            allowed, err = await _verify_trace_tenant_access(clean_id, principal, db)
+            if not allowed:
+                return err or _format_error("trace_not_found", f"Trace '{clean_id}' not found.")
+
             findings_resp = await failure_detection_service.get_findings(clean_id, db)
 
         return sanitize_for_mcp({
@@ -211,6 +281,15 @@ async def investigate_trace_handler(trace_id: str) -> Dict[str, Any]:
 
     try:
         async with get_db_session() as db:
+            principal, auth_err = await resolve_mcp_principal(db)
+            if auth_err:
+                return auth_err
+
+            # Verify tenant ownership
+            allowed, err = await _verify_trace_tenant_access(clean_id, principal, db)
+            if not allowed:
+                return err or _format_error("trace_not_found", f"Trace '{clean_id}' not found.")
+
             result = await ai_investigation_service.investigate_trace(clean_id, db)
 
         root_cause = None
@@ -281,6 +360,19 @@ async def compare_traces_handler(trace_a: str, trace_b: str) -> Dict[str, Any]:
 
     try:
         async with get_db_session() as db:
+            principal, auth_err = await resolve_mcp_principal(db)
+            if auth_err:
+                return auth_err
+
+            # Verify tenant ownership of BOTH trace_a and trace_b
+            allowed_a, err_a = await _verify_trace_tenant_access(clean_a, principal, db)
+            if not allowed_a:
+                return err_a or _format_error("trace_not_found", f"Trace '{clean_a}' not found.")
+
+            allowed_b, err_b = await _verify_trace_tenant_access(clean_b, principal, db)
+            if not allowed_b:
+                return err_b or _format_error("trace_not_found", f"Trace '{clean_b}' not found.")
+
             comp = await trace_comparison_service.compare_traces(clean_a, clean_b, db)
 
         return sanitize_for_mcp({
@@ -353,13 +445,31 @@ async def search_historical_failures_handler(
 
     try:
         async with get_db_session() as db:
+            principal, auth_err = await resolve_mcp_principal(db)
+            if auth_err:
+                return auth_err
+
+            # Reject attempts to override authenticated project scope
+            if project and project.strip():
+                clean_proj = project.strip()
+                found_proj = await _resolve_project(clean_proj, db)
+
+                if found_proj and found_proj.id != principal.project_id:
+                    return _format_error("forbidden", "Cannot override authenticated project scope.")
+
+                if not found_proj and not principal.is_legacy_dev:
+                    if clean_proj != principal.project_id and clean_proj.lower() != principal.project_name.lower():
+                        return _format_error("forbidden", "Cannot override authenticated project scope.")
+
+            # Search strictly scoped to authenticated project_id
             search_res = await failure_search_service.search_failures(
                 query=clean_q,
                 db=db,
                 limit=limit,
                 severity=clean_sev,
                 rule=rule.strip() if rule and rule.strip() else None,
-                project_name=project.strip() if project and project.strip() else None,
+                project_id=principal.project_id,
+                project_ids=[principal.project_id],
             )
 
         return sanitize_for_mcp({
@@ -405,8 +515,25 @@ async def list_recent_traces_handler(
 
     try:
         async with get_db_session() as db:
+            principal, auth_err = await resolve_mcp_principal(db)
+            if auth_err:
+                return auth_err
+
+            # Reject attempts to override authenticated project scope
+            if clean_proj:
+                found_proj = await _resolve_project(clean_proj, db)
+
+                if found_proj and found_proj.id != principal.project_id:
+                    return _format_error("forbidden", "Cannot override authenticated project scope.")
+
+                if not found_proj and not principal.is_legacy_dev:
+                    if clean_proj != principal.project_id and clean_proj.lower() != principal.project_name.lower():
+                        return _format_error("forbidden", "Cannot override authenticated project scope.")
+
             summaries = await trace_service.list_traces(
-                project_name=clean_proj,
+                project_name=clean_proj if (principal.is_legacy_dev and clean_proj) else None,
+                project_id=principal.project_id,
+                project_ids=[principal.project_id],
                 db=db,
                 limit=limit,
                 offset=offset,
@@ -416,7 +543,7 @@ async def list_recent_traces_handler(
             "total": len(summaries),
             "limit": limit,
             "offset": offset,
-            "project_filter": clean_proj,
+            "project_filter": clean_proj or principal.project_name,
             "traces": [
                 {
                     "trace_id": t.trace_id,

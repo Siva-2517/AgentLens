@@ -85,6 +85,15 @@ class MockEmbeddingProvider(EmbeddingProvider):
         return [round(x / norm, 6) for x in vec]
 
 
+def is_mock_allowed() -> bool:
+    """Check if mock provider fallback is permitted based on environment and config."""
+    env = (getattr(settings, "environment", "development") or "development").strip().lower()
+    is_prod = env in ("production", "prod")
+    if is_prod and not getattr(settings, "allow_mock_providers", False):
+        return False
+    return True
+
+
 class GeminiEmbeddingProvider(EmbeddingProvider):
     """Google Gemini embedding provider using text-embedding-004."""
 
@@ -111,6 +120,8 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
         return results[0]
 
     async def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        import asyncio
+        from app.services.metrics import metrics_collector
         try:
             from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
@@ -118,8 +129,17 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
                 google_api_key=self._api_key,
                 model=self._model,
             )
-            return await embeddings.aembed_documents(texts)
+            res = await asyncio.wait_for(embeddings.aembed_documents(texts), timeout=15.0)
+            metrics_collector.record_llm_call(provider="gemini_embeddings", success=True)
+            return res
         except Exception as e:
+            metrics_collector.record_llm_call(provider="gemini_embeddings", success=False)
+            if not is_mock_allowed():
+                logger.error(f"Gemini embedding call failed in production: {type(e).__name__}. Mock fallback is prohibited.")
+                raise RuntimeError(
+                    f"Embedding provider 'gemini' failed and mock fallback is disabled in production: {type(e).__name__}"
+                ) from e
+            metrics_collector.record_mock_fallback(provider="gemini_embeddings")
             logger.warning(
                 f"Gemini embedding call failed: {e}. Falling back to deterministic MockEmbeddingProvider."
             )
@@ -130,23 +150,41 @@ class GeminiEmbeddingProvider(EmbeddingProvider):
 def get_embedding_provider(
     provider_name: Optional[str] = None,
 ) -> EmbeddingProvider:
-    """Factory to get the configured embedding provider."""
+    """Factory to get the configured embedding provider with fail-closed production semantics."""
+    from app.services.metrics import metrics_collector
+
     name = (provider_name or settings.embedding_provider or "mock").lower()
 
-    gemini_valid = settings.gemini_api_key and not settings.gemini_api_key.startswith("your_")
+    if not is_mock_allowed() and name == "mock":
+        raise RuntimeError("Deterministic mock embedding provider is explicitly prohibited in production.")
 
-    if name == "gemini" and gemini_valid:
+    gemini_valid = bool(settings.gemini_api_key and not settings.gemini_api_key.startswith("your_"))
+
+    if name == "gemini":
+        if not gemini_valid:
+            if not is_mock_allowed():
+                raise RuntimeError("Embedding provider 'gemini' configured in production but GEMINI_API_KEY is missing or invalid.")
+            logger.warning("Gemini API key not configured. Falling back to mock embedding provider in development.")
+            metrics_collector.record_mock_fallback(provider="gemini_embedding_init")
+            return MockEmbeddingProvider(dimension=settings.embedding_dimension)
         try:
             return GeminiEmbeddingProvider()
         except Exception as e:
+            if not is_mock_allowed():
+                raise RuntimeError(f"Failed to initialize Gemini embedding provider in production: {e}") from e
             logger.warning(
                 f"Failed to initialize Gemini embedding provider: {e}. Falling back to mock."
             )
+            metrics_collector.record_mock_fallback(provider="gemini_embedding_init")
             return MockEmbeddingProvider(dimension=settings.embedding_dimension)
     elif name == "mock":
         return MockEmbeddingProvider(dimension=settings.embedding_dimension)
 
+    if not is_mock_allowed():
+        raise RuntimeError(f"Unknown or unconfigured embedding provider '{name}' in production.")
+
     logger.info(
         f"Embedding provider '{name}' requested but no valid API key configured. Using MockEmbeddingProvider."
     )
+    metrics_collector.record_mock_fallback(provider=name)
     return MockEmbeddingProvider(dimension=settings.embedding_dimension)

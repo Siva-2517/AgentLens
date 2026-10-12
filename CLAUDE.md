@@ -19,7 +19,7 @@ It reconstructs executions into traces and execution graphs and uses AI to inves
 
 - **Backend**: Python + FastAPI
 - **Database**: PostgreSQL (Neon cloud)
-- **Cache/queues**: Redis (Docker)
+- **Cache/queues**: Redis Cloud
 - **AI/Agents**: LangGraph + LangChain
 - **LLM providers**: Gemini and Groq
 - **Frontend**: React + TypeScript
@@ -27,7 +27,7 @@ It reconstructs executions into traces and execution graphs and uses AI to inves
 - **Graph visualization**: React Flow
 - **Vector search**: pgvector (available in Neon)
 - **Integration**: Python SDK + MCP
-- **Infrastructure**: Docker (Redis only)
+- **Infrastructure**: Cloud-native (Neon PostgreSQL + Redis Cloud)
 - **Testing**: pytest for Python, Vitest/React Testing Library for frontend
 
 ## Architecture
@@ -202,13 +202,12 @@ AgentLens/
 │   │   ├── services/     # API client
 │   │   └── types/        # TypeScript types
 │   ├── package.json
-│   └── Dockerfile
+│   └── vite.config.ts
 ├── sdk/
 │   ├── agentlens/        # Python SDK package
 │   ├── tests/
 │   └── setup.py
 ├── demo/                 # Demo AI agent
-├── docker-compose.yml
 ├── .env.example
 └── README.md
 ```
@@ -280,7 +279,6 @@ API_PORT=8000
 
 - **Backend**: `cd backend && uvicorn app.main:app --reload`
 - **Frontend**: `cd frontend && npm run dev`
-- **Full stack**: `docker-compose up`
 
 ## Phase 16: Model Context Protocol (MCP)
 
@@ -360,8 +358,8 @@ AgentLens is security-hardened for its current architecture across API ingestion
   - `X-XSS-Protection: 1; mode=block`
 - Configurable CORS via `CORS_ORIGINS` environment variable (disallowing wildcard `*` when credentials are used).
 
-### 7. Known Architectural Limitations
-- **Frontend SPA API Key**: `VITE_AGENTLENS_API_KEY` in the React frontend is compiled into client-side JavaScript bundles and is publicly inspectable in user browsers. In production deployments, client dashboards should either authenticate through user session cookies via a backend reverse proxy or operate within a trusted internal network.
+### 7. Known Architectural Limitations & Resolutions
+- **Frontend SPA Authentication (Resolved in Phase 19D)**: The frontend previously relied on `VITE_AGENTLENS_API_KEY`. In Phase 19D, this was completely replaced with secure HttpOnly session cookies, double-submit CSRF defenses, and server-side multi-tenant authorization. All hardcoded ingestion keys have been eliminated from browser bundles.
 
 ## Notes for Future Development
 

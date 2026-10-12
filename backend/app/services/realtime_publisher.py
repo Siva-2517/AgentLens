@@ -74,8 +74,16 @@ class RealtimePublisher:
                 f"Redis real-time publish failed for channel '{channel}' (message type: {message.type}): {e}. "
                 "Degrading gracefully without affecting HTTP ingestion."
             )
-            # Invalidate connection to retry on next publish if connection dropped
+            # Clean up and invalidate broken connection pool
+            if self._redis is not None:
+                try:
+                    await self._redis.aclose()
+                except Exception:
+                    pass
             self._redis = None
+
+        from app.services.metrics import metrics_collector
+        metrics_collector.record_redis_publish(success=redis_success)
 
         # 2. Also notify local in-memory subscribers (for local dev, tests, or dual-tier distribution)
         try:

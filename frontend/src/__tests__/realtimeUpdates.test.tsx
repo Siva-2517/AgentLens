@@ -15,6 +15,39 @@ vi.mock('../services/api', async () => {
   };
 });
 
+// Mock Auth module for authenticated dashboard state
+vi.mock('../services/auth', async () => {
+  const actual = await vi.importActual('../services/auth');
+  return {
+    ...actual,
+    getCurrentUserProfile: vi.fn().mockResolvedValue({
+      user: {
+        id: 'user-1',
+        email: 'test@agentlens.ai',
+        is_active: true,
+        is_superuser: false,
+        created_at: '2026-01-01T00:00:00Z',
+      },
+      organizations: [
+        {
+          id: 'org-1',
+          name: 'Test Org',
+          slug: 'test-org',
+          role: 'owner',
+        },
+      ],
+      projects: [
+        {
+          id: 'proj-1',
+          organization_id: 'org-1',
+          name: 'LiveTest',
+          slug: 'livetest',
+        },
+      ],
+    }),
+  };
+});
+
 describe('Real-Time Updates in App Dashboard', () => {
   const mockTraces: TraceSummary[] = [
     {

@@ -27,7 +27,7 @@ export function TraceList({
 
   // Filter traces by search query and status
   const filteredTraces = useMemo(() => {
-    return traces.filter((trace) => {
+    return (traces || []).filter((trace) => {
       const matchesSearch =
         searchQuery === '' ||
         trace.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

@@ -1,9 +1,7 @@
-"""Database initialization script.
+"""Database initialization and schema migration script (Phase 19).
 
-This script initializes the database by creating all tables.
-
-For Phase 4, we use a simple approach with SQLAlchemy Base.metadata.create_all().
-For production, consider using Alembic for proper migration management.
+Initializes PostgreSQL (Neon) or SQLite with all multi-tenant tables,
+vector extension, indexes, and foreign key constraints.
 
 Usage:
     python init_db.py
@@ -12,24 +10,30 @@ Usage:
 import asyncio
 import logging
 
-from app.db import init_db, close_db
 from app.config import settings
+from app.db import close_db, init_db
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 async def main():
-    """Initialize database tables."""
+    """Initialize database tables and constraints."""
     logger.info("Initializing database...")
     logger.info(f"Database URL: {settings.database_url[:30]}...")
 
     try:
         await init_db()
-        logger.info("✓ Database tables created successfully")
-        logger.info("Tables created:")
-        logger.info("  - traces")
-        logger.info("  - events")
+        logger.info("✓ Database tables and multi-tenant constraints created successfully")
+        logger.info("Tables configured:")
+        logger.info("  - users")
+        logger.info("  - organizations")
+        logger.info("  - organization_members")
+        logger.info("  - projects")
+        logger.info("  - api_keys")
+        logger.info("  - traces (project_id FK NOT NULL)")
+        logger.info("  - events (trace_id FK)")
+        logger.info("  - failure_embeddings (trace_id FK, project_id FK)")
 
     except Exception as e:
         logger.error(f"✗ Failed to initialize database: {e}")

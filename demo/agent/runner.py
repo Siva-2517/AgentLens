@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -32,7 +33,7 @@ class DemoAgentRunner:
 
     def __init__(
         self,
-        api_url: str = "http://localhost:8000",
+        api_url: Optional[str] = None,
         api_key: Optional[str] = None,
         project_name: Optional[str] = None,
         use_agentlens: bool = True,
@@ -40,25 +41,25 @@ class DemoAgentRunner:
         """Initialize demo agent runner.
 
         Args:
-            api_url: AgentLens API URL.
-            api_key: AgentLens API key for authentication.
-            project_name: Project name for multi-tenancy.
+            api_url: AgentLens API URL (defaults to AGENTLENS_API_URL env var).
+            api_key: AgentLens API key (defaults to AGENTLENS_API_KEY env var).
+            project_name: Project name (defaults to AGENTLENS_PROJECT_NAME env var).
             use_agentlens: Whether to enable AgentLens observability.
         """
-        self.api_url = api_url
-        self.api_key = api_key
-        self.project_name = project_name
+        self.api_url = api_url or os.getenv("AGENTLENS_API_URL", "http://localhost:8000")
+        self.api_key = api_key or os.getenv("AGENTLENS_API_KEY")
+        self.project_name = project_name or os.getenv("AGENTLENS_PROJECT_NAME", "demo-project")
         self.use_agentlens = use_agentlens
 
         # Initialize AgentLens if enabled
         if self.use_agentlens:
             try:
                 self.lens = AgentLens(
-                    api_url=api_url,
-                    api_key=api_key,
-                    project_name=project_name,
+                    api_url=self.api_url,
+                    api_key=self.api_key,
+                    project_name=self.project_name,
                 )
-                logger.info(f"AgentLens initialized: api_url={api_url}")
+                logger.info(f"AgentLens initialized: api_url={self.api_url}, project={self.project_name}")
             except Exception as e:
                 logger.warning(f"Could not initialize AgentLens: {e}")
                 logger.warning("Continuing without AgentLens observability")
@@ -236,6 +237,8 @@ class DemoAgentRunner:
 
                 # Flush events
                 self.lens.flush()
+                # Explicitly close trace in AgentLens
+                self.lens.end_trace(self.current_trace_id, status="completed")
 
             return {
                 "success": True,
@@ -247,6 +250,8 @@ class DemoAgentRunner:
         except GraphInterrupt as e:
             # Graph interrupted for human input
             logger.warning(f"Graph interrupted: {e}")
+            if self.lens and self.current_trace_id:
+                self.lens.end_trace(self.current_trace_id, status="interrupted")
             return {
                 "success": False,
                 "error": "Graph interrupted",
@@ -275,6 +280,7 @@ class DemoAgentRunner:
                         trace_id=self.current_trace_id,
                     )
                     self.lens.flush()
+                    self.lens.end_trace(self.current_trace_id, status="failed")
 
             return {
                 "success": False,

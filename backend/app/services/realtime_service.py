@@ -34,6 +34,8 @@ class RealtimeService:
                 self._connections[trace_id] = set()
 
             self._connections[trace_id].add(websocket)
+            from app.services.metrics import metrics_collector
+            metrics_collector.inc_websocket_connection()
             logger.info(
                 f"WebSocket connected for trace '{trace_id}'. "
                 f"Active subscribers for trace: {len(self._connections[trace_id])}"
@@ -55,6 +57,8 @@ class RealtimeService:
         async with self._lock:
             if trace_id in self._connections:
                 self._connections[trace_id].discard(websocket)
+                from app.services.metrics import metrics_collector
+                metrics_collector.dec_websocket_connection(reason="disconnect")
                 remaining = len(self._connections[trace_id])
                 logger.info(
                     f"WebSocket disconnected from trace '{trace_id}'. "
@@ -102,7 +106,7 @@ class RealtimeService:
                 self.redis_url,
                 encoding="utf-8",
                 decode_responses=True,
-                socket_connect_timeout=2.0,
+                socket_connect_timeout=5.0,
                 socket_timeout=5.0,
             )
             pubsub = redis_client.pubsub()

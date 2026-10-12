@@ -1,4 +1,4 @@
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import {
   TraceSummary,
   ReconstructedTrace,
@@ -11,21 +11,118 @@ import {
   TraceIndexingResponse,
   FailureSearchParams,
 } from '../types/failureSearch';
+import { getEffectiveCsrfToken, setCsrfToken } from './csrf';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
-const API_KEY =
-  import.meta.env.VITE_AGENTLENS_API_KEY || 'test_api_key_123';
-
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${API_KEY}`,
   },
   timeout: 10000,
 });
+
+// Listener for session expiration (401 that cannot be refreshed)
+type SessionExpiredListener = () => void;
+const sessionExpiredListeners: Set<SessionExpiredListener> = new Set();
+
+export function onSessionExpired(listener: SessionExpiredListener): () => void {
+  sessionExpiredListeners.add(listener);
+  return () => {
+    sessionExpiredListeners.delete(listener);
+  };
+}
+
+function notifySessionExpired(): void {
+  sessionExpiredListeners.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      // safe
+    }
+  });
+}
+
+// Request interceptor: attach X-CSRF-Token on state-changing requests
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const method = config.method?.toUpperCase();
+  if (method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+    const csrfToken = getEffectiveCsrfToken();
+    if (csrfToken && config.headers) {
+      config.headers['X-CSRF-Token'] = csrfToken;
+    }
+  }
+  return config;
+});
+
+// Response interceptor: auto-refresh on 401 with loop protection
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void;
+  reject: (reason?: unknown) => void;
+}> = [];
+
+const processQueue = (error: unknown) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve();
+    }
+  });
+  failedQueue = [];
+};
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
+
+    const url = originalRequest?.url || '';
+    const isAuthRoute =
+      url.includes('/auth/login') ||
+      url.includes('/auth/register') ||
+      url.includes('/auth/refresh') ||
+      url.includes('/auth/logout');
+
+    if (error.response?.status === 401 && !isAuthRoute && originalRequest && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(() => apiClient(originalRequest))
+          .catch((err) => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const refreshRes = await axios.post<{ message: string; csrf_token?: string }>(
+          `${API_BASE_URL}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        );
+        if (refreshRes.data?.csrf_token) {
+          setCsrfToken(refreshRes.data.csrf_token);
+        }
+        processQueue(null);
+        return apiClient(originalRequest);
+      } catch (refreshErr) {
+        processQueue(refreshErr);
+        notifySessionExpired();
+        return Promise.reject(refreshErr);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 /**
  * Normalizes API error into a human-friendly message.
@@ -38,7 +135,10 @@ export function formatApiError(error: unknown): string {
       const detail = axiosError.response.data?.detail;
 
       if (status === 401) {
-        return detail || 'Unauthorized: Invalid or missing API key.';
+        return detail || 'Unauthorized: Please log in to continue.';
+      }
+      if (status === 403) {
+        return detail || 'Forbidden: Insufficient permissions for this operation.';
       }
       if (status === 404) {
         return detail || 'Resource not found.';
@@ -162,4 +262,3 @@ export async function indexTraceFailures(
   );
   return response.data;
 }
-

@@ -221,6 +221,15 @@ class MockInvestigationProvider(InvestigationLLMProvider):
         }
 
 
+def is_mock_allowed() -> bool:
+    """Check if mock provider fallback is permitted based on environment and config."""
+    env = (getattr(settings, "environment", "development") or "development").strip().lower()
+    is_prod = env in ("production", "prod")
+    if is_prod and not getattr(settings, "allow_mock_providers", False):
+        return False
+    return True
+
+
 class GroqInvestigationProvider(InvestigationLLMProvider):
     """Groq-backed LLM provider for investigation."""
 
@@ -241,10 +250,13 @@ class GroqInvestigationProvider(InvestigationLLMProvider):
     async def investigate(self, context: InvestigationContext) -> dict[str, Any]:
         from langchain_groq import ChatGroq
 
+        from app.services.metrics import metrics_collector
+
         llm = ChatGroq(
             api_key=self._api_key,
             model=self._model,
             temperature=self._temperature,
+            request_timeout=30.0,
         )
 
         user_content = (
@@ -265,8 +277,16 @@ class GroqInvestigationProvider(InvestigationLLMProvider):
             content = response.content
             if isinstance(content, list):
                 content = "".join([c if isinstance(c, str) else str(c) for c in content])
+            metrics_collector.record_llm_call(provider="groq", success=True)
             return _clean_and_parse_json(content)
         except Exception as e:
+            metrics_collector.record_llm_call(provider="groq", success=False)
+            if not is_mock_allowed():
+                logger.error(f"Groq investigation call failed in production: {type(e).__name__}. Mock fallback is prohibited.")
+                raise RuntimeError(
+                    f"LLM provider 'groq' failed during investigation and mock fallback is disabled in production: {type(e).__name__}"
+                ) from e
+            metrics_collector.record_mock_fallback(provider="groq")
             logger.warning(f"Groq investigation call failed: {e}. Falling back to mock investigation.")
             mock_provider = MockInvestigationProvider()
             return await mock_provider.investigate(context)
@@ -291,11 +311,13 @@ class GeminiInvestigationProvider(InvestigationLLMProvider):
 
     async def investigate(self, context: InvestigationContext) -> dict[str, Any]:
         from langchain_google_genai import ChatGoogleGenerativeAI
+        from app.services.metrics import metrics_collector
 
         llm = ChatGoogleGenerativeAI(
             google_api_key=self._api_key,
             model=self._model,
             temperature=self._temperature,
+            request_timeout=30.0,
         )
 
         user_content = (
@@ -316,8 +338,16 @@ class GeminiInvestigationProvider(InvestigationLLMProvider):
             content = response.content
             if isinstance(content, list):
                 content = "".join([c if isinstance(c, str) else str(c) for c in content])
+            metrics_collector.record_llm_call(provider="gemini", success=True)
             return _clean_and_parse_json(content)
         except Exception as e:
+            metrics_collector.record_llm_call(provider="gemini", success=False)
+            if not is_mock_allowed():
+                logger.error(f"Gemini investigation call failed in production: {type(e).__name__}. Mock fallback is prohibited.")
+                raise RuntimeError(
+                    f"LLM provider 'gemini' failed during investigation and mock fallback is disabled in production: {type(e).__name__}"
+                ) from e
+            metrics_collector.record_mock_fallback(provider="gemini")
             logger.warning(f"Gemini investigation call failed: {e}. Falling back to mock investigation.")
             mock_provider = MockInvestigationProvider()
             return await mock_provider.investigate(context)
@@ -339,29 +369,57 @@ def _clean_and_parse_json(raw: str) -> dict[str, Any]:
 def get_investigation_provider(
     provider_name: Optional[str] = None,
 ) -> InvestigationLLMProvider:
-    """Factory to get the configured investigation LLM provider."""
+    """Factory to get the configured investigation LLM provider with fail-closed production semantics."""
+    from app.services.metrics import metrics_collector
+
     name = (provider_name or settings.llm_provider or "mock").lower()
 
-    groq_valid = settings.groq_api_key and not settings.groq_api_key.startswith("your_")
-    gemini_valid = settings.gemini_api_key and not settings.gemini_api_key.startswith("your_")
+    if not is_mock_allowed() and name == "mock":
+        raise RuntimeError("Deterministic mock LLM provider is explicitly prohibited in production.")
 
-    if name == "groq" and groq_valid:
+    groq_valid = bool(settings.groq_api_key and not settings.groq_api_key.startswith("your_"))
+    gemini_valid = bool(settings.gemini_api_key and not settings.gemini_api_key.startswith("your_"))
+
+    if name == "groq":
+        if not groq_valid:
+            if not is_mock_allowed():
+                raise RuntimeError("LLM provider 'groq' configured in production but GROQ_API_KEY is missing or invalid.")
+            logger.warning("Groq API key not configured. Falling back to mock investigation provider in development.")
+            metrics_collector.record_mock_fallback(provider="groq_init")
+            return MockInvestigationProvider()
         try:
             from langchain_groq import ChatGroq
             return GroqInvestigationProvider()
         except Exception as e:
+            if not is_mock_allowed():
+                raise RuntimeError(f"Failed to initialize Groq provider in production: {e}") from e
             logger.warning(f"Failed to initialize Groq provider: {e}. Falling back to mock.")
+            metrics_collector.record_mock_fallback(provider="groq_init")
             return MockInvestigationProvider()
-    elif name == "gemini" and gemini_valid:
+
+    elif name == "gemini":
+        if not gemini_valid:
+            if not is_mock_allowed():
+                raise RuntimeError("LLM provider 'gemini' configured in production but GEMINI_API_KEY is missing or invalid.")
+            logger.warning("Gemini API key not configured. Falling back to mock investigation provider in development.")
+            metrics_collector.record_mock_fallback(provider="gemini_init")
+            return MockInvestigationProvider()
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI
             return GeminiInvestigationProvider()
         except Exception as e:
+            if not is_mock_allowed():
+                raise RuntimeError(f"Failed to initialize Gemini provider in production: {e}") from e
             logger.warning(f"Failed to initialize Gemini provider: {e}. Falling back to mock.")
+            metrics_collector.record_mock_fallback(provider="gemini_init")
             return MockInvestigationProvider()
+
     elif name == "mock":
         return MockInvestigationProvider()
 
-    # Fallback to mock if requested provider lacks a valid API key
+    if not is_mock_allowed():
+        raise RuntimeError(f"Unknown or unconfigured LLM provider '{name}' in production.")
+
     logger.info(f"Provider '{name}' requested but no valid API key configured. Using MockInvestigationProvider.")
+    metrics_collector.record_mock_fallback(provider=name)
     return MockInvestigationProvider()

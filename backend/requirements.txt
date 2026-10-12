@@ -1,28 +1,34 @@
 # Core Framework
-fastapi==0.115.4
-uvicorn[standard]==0.32.0
+fastapi>=0.115.4
+uvicorn[standard]>=0.32.0
 
-# Data Validation
-pydantic==2.9.2
-pydantic-settings==2.6.1
+# Data Validation & Settings
+pydantic>=2.12.0,<3.0.0
+pydantic-settings>=2.6.1,<3.0.0
 
-# Database
-asyncpg==0.30.0
-sqlalchemy==2.0.36
-pgvector==0.5.0
+# Database & Storage
+asyncpg>=0.30.0
+sqlalchemy>=2.0.36
+pgvector>=0.5.0
+aiosqlite>=0.20.0
 
-# Redis
-redis==5.2.0
+# Authentication & Cryptography
+PyJWT>=2.8.0
+bcrypt>=4.0.0
+
+# Redis & Pub/Sub
+redis>=5.2.0
 
 # LLM and AI Agents
-langchain==0.3.7
-langchain-google-genai==2.0.4
-langchain-groq==0.2.1
-langgraph==0.2.45
+langchain>=0.3.7
+langchain-google-genai>=2.0.4
+langchain-groq>=0.2.1
+langgraph>=0.2.45
 
 # Model Context Protocol (MCP)
 mcp>=2.0.0
 
-# Utilities
-python-dotenv==1.0.1
-python-multipart==0.0.12
+# Utilities & Networking
+python-dotenv>=1.0.1
+python-multipart>=0.0.12
+httpx>=0.27.0

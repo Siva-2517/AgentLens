@@ -20,7 +20,12 @@ def test_root():
 
 def test_health():
     """Test health check endpoint."""
-    response = client.get("/health")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "healthy"
+    from unittest.mock import MagicMock, AsyncMock, patch
+    mock_engine = MagicMock()
+    mock_conn = AsyncMock()
+    mock_engine.begin.return_value.__aenter__.return_value = mock_conn
+    with patch("app.db.session.engine", mock_engine):
+        response = client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["ready"] is True

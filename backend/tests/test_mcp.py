@@ -63,6 +63,17 @@ from app.models.reconstructed_trace import (
 from app.services.trace_reconstruction_service import TraceNotFoundError
 
 
+from app.mcp.auth import set_mcp_api_key
+
+
+@pytest.fixture(autouse=True)
+def setup_mcp_test_credentials():
+    """Supply valid development test credential for legacy test suite execution."""
+    set_mcp_api_key("test_api_key_123")
+    yield
+    set_mcp_api_key(None)
+
+
 @pytest.fixture
 def mcp_db_override(test_db_session):
     """Override MCP session factory to use test SQLite database session."""

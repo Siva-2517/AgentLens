@@ -328,14 +328,14 @@ def create_customer_support_graph(
     workflow = StateGraph(CustomerSupportState)
 
     # Add nodes
-    workflow.add_node("agent_thought", agent_thought_node)
+    workflow.add_node("thought_node", agent_thought_node)
     workflow.add_node("llm_call", llm_call_node)
     workflow.add_node("tool_execution", tool_execution_node)
     workflow.add_node("response", response_node)
 
     # Add edges
-    workflow.set_entry_point("agent_thought")
-    workflow.add_edge("agent_thought", "llm_call")
+    workflow.set_entry_point("thought_node")
+    workflow.add_edge("thought_node", "llm_call")
     workflow.add_edge("llm_call", "tool_execution")
     workflow.add_edge("tool_execution", "response")
     workflow.add_edge("response", END)

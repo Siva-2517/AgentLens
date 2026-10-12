@@ -7,6 +7,7 @@ import { formatDateTime } from '../../utils/formatters';
 
 interface HistoricalSearchViewProps {
   onSelectTrace: (traceId: string, findingId?: string) => void;
+  selectedProjectId?: string;
 }
 
 const SAMPLE_QUERIES = [
@@ -16,11 +17,11 @@ const SAMPLE_QUERIES = [
   'LLM schema validation failure or timeout',
 ];
 
-export function HistoricalSearchView({ onSelectTrace }: HistoricalSearchViewProps) {
+export function HistoricalSearchView({ onSelectTrace, selectedProjectId }: HistoricalSearchViewProps) {
   const [query, setQuery] = useState('');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [ruleFilter, setRuleFilter] = useState<string>('');
-  const [projectFilter, setProjectFilter] = useState<string>('');
+  const [projectFilter, setProjectFilter] = useState<string>(selectedProjectId || '');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);

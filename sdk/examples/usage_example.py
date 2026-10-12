@@ -5,9 +5,8 @@ from agentlens import AgentLens, EventType
 
 def simple_agent_example():
     """Simple example of using AgentLens SDK."""
-    # Initialize the SDK
+    # Initialize the SDK (reads AGENTLENS_API_URL, AGENTLENS_API_KEY from env)
     lens = AgentLens(
-        api_url="http://localhost:8000",
         project_name="example-agent",
         enabled=False,  # Disabled for this example
     )

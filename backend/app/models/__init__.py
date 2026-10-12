@@ -42,7 +42,16 @@ from app.models.failure_search import (
     HistoricalSearchResponse,
     TraceIndexingResponse,
 )
-from app.models.trace import TraceCreate, TraceResponse
+from app.models.api_key import ApiKeyCreate, ApiKeyResponse
+from app.models.organization import (
+    OrganizationBase,
+    OrganizationCreate,
+    OrganizationMemberResponse,
+    OrganizationResponse,
+)
+from app.models.project import ProjectBase, ProjectCreate, ProjectResponse
+from app.models.trace import TraceCreate, TraceResponse, TraceSummary
+from app.models.user import UserBase, UserCreate, UserResponse
 
 __all__ = [
     "EventType",
@@ -50,6 +59,19 @@ __all__ = [
     "EventResponse",
     "TraceCreate",
     "TraceResponse",
+    "TraceSummary",
+    "UserBase",
+    "UserCreate",
+    "UserResponse",
+    "OrganizationBase",
+    "OrganizationCreate",
+    "OrganizationResponse",
+    "OrganizationMemberResponse",
+    "ProjectBase",
+    "ProjectCreate",
+    "ProjectResponse",
+    "ApiKeyCreate",
+    "ApiKeyResponse",
     "ReconstructedEvent",
     "TraceExecutionMetadata",
     "ReconstructedTrace",

@@ -14,9 +14,18 @@ class TraceCreate(BaseModel):
     start_time: datetime = Field(..., description="Trace start time (UTC)")
     end_time: Optional[datetime] = Field(None, description="Trace end time (UTC)")
     status: str = Field(default="running", max_length=64, description="Trace status")
+    project_id: Optional[str] = Field(None, max_length=64, description="Optional project UUID")
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Trace metadata"
     )
+
+
+class TraceUpdate(BaseModel):
+    """Trace update request model."""
+
+    end_time: Optional[datetime] = Field(None, description="Trace end time (UTC)")
+    status: Optional[str] = Field(None, max_length=64, description="Trace status")
+    metadata: Optional[dict[str, Any]] = Field(None, description="Optional metadata updates")
 
 
 class TraceResponse(BaseModel):
@@ -26,6 +35,7 @@ class TraceResponse(BaseModel):
     name: str
     start_time: datetime
     status: str
+    project_id: Optional[str] = None
 
 
 class TraceSummary(BaseModel):
@@ -33,10 +43,10 @@ class TraceSummary(BaseModel):
 
     trace_id: str = Field(..., description="Unique trace identifier")
     name: str = Field(..., description="Trace name/description")
+    project_id: Optional[str] = Field(None, description="Project unique UUID")
     project_name: Optional[str] = Field(None, description="Project name")
     status: str = Field(..., description="Trace status (running, completed, failed)")
     start_time: datetime = Field(..., description="Trace start time")
     end_time: Optional[datetime] = Field(None, description="Trace end time")
     duration_ms: Optional[float] = Field(None, description="Trace duration in milliseconds")
     event_count: int = Field(default=0, description="Total number of events in trace")
-

@@ -19,6 +19,7 @@ class TraceService:
         trace: TraceCreate,
         project_name: Optional[str],
         db: AsyncSession,
+        project_id: Optional[str] = None,
     ) -> TraceResponse:
         """Create a new trace.
 
@@ -26,6 +27,7 @@ class TraceService:
             trace: Trace to create.
             project_name: Optional project name from header.
             db: Database session.
+            project_id: Optional validated project ID from ingestion principal.
 
         Returns:
             Trace response.
@@ -33,7 +35,7 @@ class TraceService:
         repo = TraceRepository(db)
 
         # Create trace in database
-        db_trace = await repo.create(trace, project_name)
+        db_trace = await repo.create(trace, project_name, project_id=project_id)
 
         logger.info(
             f"Created trace {trace.trace_id} ({trace.name}, project: {project_name})"
@@ -118,6 +120,8 @@ class TraceService:
         db: AsyncSession,
         limit: int = 100,
         offset: int = 0,
+        project_id: Optional[str] = None,
+        project_ids: Optional[list[str]] = None,
     ) -> list[TraceSummary]:
         """List traces with event counts and durations.
 
@@ -126,6 +130,8 @@ class TraceService:
             db: Database session.
             limit: Maximum number of traces to return.
             offset: Offset for pagination.
+            project_id: Optional exact project ID filter.
+            project_ids: Optional list of allowed project IDs for tenant isolation.
 
         Returns:
             List of trace summaries.
@@ -133,6 +139,8 @@ class TraceService:
         repo = TraceRepository(db)
         records = await repo.list_traces(
             project_name=project_name,
+            project_id=project_id,
+            project_ids=project_ids,
             limit=limit,
             offset=offset,
         )

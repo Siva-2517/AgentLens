@@ -25,7 +25,7 @@ class AgentLens:
 
     def __init__(
         self,
-        api_url: str = "http://localhost:8000",
+        api_url: Optional[str] = None,
         api_key: Optional[str] = None,
         project_name: Optional[str] = None,
         **kwargs: Any,
@@ -33,22 +33,26 @@ class AgentLens:
         """Initialize AgentLens client.
 
         Args:
-            api_url: AgentLens API base URL.
-            api_key: Optional API key for authentication.
-            project_name: Optional project name for organization.
+            api_url: AgentLens API base URL (defaults to AGENTLENS_API_URL env or http://localhost:8000).
+            api_key: Optional API key for authentication (defaults to AGENTLENS_API_KEY env).
+            project_name: Optional project name for organization (defaults to AGENTLENS_PROJECT_NAME env).
             **kwargs: Additional configuration options.
         """
-        self.config = AgentLensConfig(
-            api_url=api_url,
-            api_key=api_key,
-            project_name=project_name,
-            **kwargs,
-        )
+        config_kwargs: dict[str, Any] = {}
+        if api_url is not None:
+            config_kwargs["api_url"] = api_url
+        if api_key is not None:
+            config_kwargs["api_key"] = api_key
+        if project_name is not None:
+            config_kwargs["project_name"] = project_name
+        config_kwargs.update(kwargs)
+
+        self.config = AgentLensConfig(**config_kwargs)
         self.exporter = HTTPExporter(self.config)
         self._traces: dict[str, Trace] = {}
         self._events: list[Event] = []
 
-        logger.info(f"AgentLens initialized with API URL: {api_url}")
+        logger.info(f"AgentLens initialized with API URL: {self.config.api_url}")
 
     def _generate_trace_id(self) -> str:
         """Generate a unique trace ID.

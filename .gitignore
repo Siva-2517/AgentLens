@@ -62,10 +62,12 @@ frontend/build/
 
 # Environment variables
 .env
+**/.env
 .env.local
 .env.*.local
 .env.*
 !.env.example
+!**/.env.example
 
 # Temporary artifacts
 *.tmp
