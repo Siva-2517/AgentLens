@@ -77,7 +77,19 @@ const processQueue = (error: unknown) => {
 };
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Guard against SPA fallback HTML responses when backend endpoint is not found or misconfigured
+    if (
+      typeof response.data === 'string' &&
+      (response.data.trim().toLowerCase().startsWith('<!doctype') ||
+        response.data.trim().toLowerCase().startsWith('<html'))
+    ) {
+      return Promise.reject(
+        new Error('API returned an HTML document instead of JSON. Ensure backend is running and VITE_API_BASE_URL is configured.')
+      );
+    }
+    return response;
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
 

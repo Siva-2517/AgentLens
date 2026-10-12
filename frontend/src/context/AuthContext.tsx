@@ -48,6 +48,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfile = useCallback(async () => {
     try {
       const profile = await getCurrentUserProfile();
+      if (!profile || typeof profile !== 'object' || !profile.user || !profile.user.id) {
+        throw new Error('Not authenticated');
+      }
       setUser(profile.user);
       setOrganizations(profile.organizations || []);
       setProjects(profile.projects || []);
@@ -80,6 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then(() => getCurrentUserProfile())
       .then((profile) => {
         if (!isMounted || !profile) return;
+        if (typeof profile !== 'object' || !profile.user || !profile.user.id) {
+          throw new Error('Not authenticated');
+        }
         setUser(profile.user);
         setOrganizations(profile.organizations || []);
         setProjects(profile.projects || []);

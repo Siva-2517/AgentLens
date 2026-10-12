@@ -123,7 +123,7 @@ function DashboardApp() {
         if (res.data?.status === 'healthy' || res.data?.status === 'degraded') {
           setApiStatus('healthy');
         } else {
-          setApiStatus('checking');
+          setApiStatus('offline');
         }
       })
       .catch(() => {
