@@ -2,6 +2,7 @@ import {
   RealtimeMessage,
   RealtimeConnectionState,
 } from '../types/realtime';
+import { getAccessToken } from './csrf';
 
 export interface RealtimeClientOptions {
   traceId: string;
@@ -59,7 +60,8 @@ export class RealtimeClient {
     this.isIntentionallyClosed = false;
     this.onStateChange('connecting');
 
-    const tokenParam = this.apiKey ? `?token=${encodeURIComponent(this.apiKey)}` : '';
+    const effectiveToken = this.apiKey || getAccessToken() || '';
+    const tokenParam = effectiveToken ? `?token=${encodeURIComponent(effectiveToken)}` : '';
     const url = `${this.wsBaseUrl}/${encodeURIComponent(this.traceId)}${tokenParam}`;
 
     try {

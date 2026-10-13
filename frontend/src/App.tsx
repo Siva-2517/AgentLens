@@ -20,6 +20,7 @@ import {
   formatApiError,
   apiClient,
 } from './services/api';
+import { getAccessToken } from './services/csrf';
 import { RealtimeClient } from './services/realtime';
 import { Header } from './components/layout/Header';
 import { TraceList } from './components/traces/TraceList';
@@ -259,6 +260,7 @@ function DashboardApp() {
 
     const client = new RealtimeClient({
       traceId: selectedTraceId,
+      apiKey: getAccessToken() || undefined,
       onMessage: handleRealtimeMessage,
       onStateChange: setRealtimeState,
     });
