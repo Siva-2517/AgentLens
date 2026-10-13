@@ -106,3 +106,9 @@ async def run_schema_migration(target_engine: AsyncEngine = engine) -> None:
             logger.info("SQLite test tables initialized")
 
     logger.info("Schema setup and migration complete.")
+
+
+if __name__ == "__main__":
+    import asyncio
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(run_schema_migration())
