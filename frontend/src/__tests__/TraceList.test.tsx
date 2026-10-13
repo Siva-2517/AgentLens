@@ -112,4 +112,24 @@ describe('TraceList Component', () => {
     expect(screen.queryByText('Agent Alpha')).not.toBeInTheDocument();
     expect(screen.getByText('Agent Beta')).toBeInTheDocument();
   });
+
+  it('renders collapse button and calls onToggleCollapse when clicked', () => {
+    const onToggleCollapseMock = vi.fn();
+    render(
+      <TraceList
+        traces={mockTraces}
+        selectedTraceId={null}
+        onSelectTrace={vi.fn()}
+        isLoading={false}
+        error={null}
+        onRefresh={vi.fn()}
+        onToggleCollapse={onToggleCollapseMock}
+      />
+    );
+
+    const collapseBtn = screen.getByTestId('collapse-traces-btn');
+    expect(collapseBtn).toBeInTheDocument();
+    fireEvent.click(collapseBtn);
+    expect(onToggleCollapseMock).toHaveBeenCalledTimes(1);
+  });
 });

@@ -12,6 +12,7 @@ interface TraceListProps {
   isLoading: boolean;
   error: string | null;
   onRefresh: () => void;
+  onToggleCollapse?: () => void;
 }
 
 export function TraceList({
@@ -21,6 +22,7 @@ export function TraceList({
   isLoading,
   error,
   onRefresh,
+  onToggleCollapse,
 }: TraceListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -79,14 +81,29 @@ export function TraceList({
           </h2>
           <span className="text-[11px] text-slate-400">Recorded AI Agent Runs</span>
         </div>
-        <button
-          onClick={onRefresh}
-          disabled={isLoading}
-          className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded border border-slate-700 transition disabled:opacity-50 flex items-center gap-1"
-          title="Reload traces from backend"
-        >
-          <span>↻</span> Refresh
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={onRefresh}
+            disabled={isLoading}
+            className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded border border-slate-700 transition disabled:opacity-50 flex items-center gap-1"
+            title="Reload traces from backend"
+          >
+            <span>↻</span> Refresh
+          </button>
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              data-testid="collapse-traces-btn"
+              className="p-1 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded border border-slate-800 hover:border-slate-700 transition"
+              title="Collapse Traces sidebar"
+              aria-label="Collapse Traces sidebar"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search & Filter Bar */}

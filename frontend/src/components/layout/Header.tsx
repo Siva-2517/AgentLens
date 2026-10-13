@@ -6,6 +6,8 @@ interface HeaderProps {
   selectedTraceId: string | null;
   activeView?: 'trace' | 'compare' | 'search';
   onSelectView?: (view: 'trace' | 'compare' | 'search') => void;
+  isTraceListVisible?: boolean;
+  onToggleTraceList?: () => void;
   // Phase 19D Multi-Tenant Project & Auth Props
   projects?: ProjectBrief[];
   selectedProject?: ProjectBrief | null;
@@ -21,6 +23,8 @@ export function Header({
   selectedTraceId,
   activeView = 'trace',
   onSelectView,
+  isTraceListVisible = true,
+  onToggleTraceList,
   projects = [],
   selectedProject = null,
   onSelectProject,
@@ -103,6 +107,30 @@ export function Header({
             <span className="text-slate-200 font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
               {selectedTraceId}
             </span>
+          </div>
+        )}
+
+        {/* Traces Sidebar Toggle Button */}
+        {activeView === 'trace' && onToggleTraceList && (
+          <div className="hidden sm:flex items-center ml-2 pl-3 border-l border-slate-800">
+            <button
+              onClick={onToggleTraceList}
+              data-testid="toggle-traces-sidebar-btn"
+              className={`px-2.5 py-1 text-xs rounded-lg border transition flex items-center gap-1.5 font-medium ${
+                isTraceListVisible
+                  ? 'bg-slate-900 text-purple-300 border-purple-800/70 hover:bg-purple-950/40 shadow-sm'
+                  : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+              title={isTraceListVisible ? 'Hide Traces Sidebar' : 'Show Traces Sidebar'}
+              aria-label={isTraceListVisible ? 'Hide Traces Sidebar' : 'Show Traces Sidebar'}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+              </svg>
+              <span>Traces</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${isTraceListVisible ? 'bg-purple-400' : 'bg-slate-500'}`} />
+            </button>
           </div>
         )}
       </div>

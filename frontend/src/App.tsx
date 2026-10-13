@@ -55,6 +55,7 @@ function DashboardApp() {
   const [traces, setTraces] = useState<TraceSummary[]>([]);
   const [isTracesLoading, setIsTracesLoading] = useState<boolean>(true);
   const [tracesError, setTracesError] = useState<string | null>(null);
+  const [isTraceListVisible, setIsTraceListVisible] = useState<boolean>(true);
 
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const [selectedTrace, setSelectedTrace] = useState<ReconstructedTrace | null>(null);
@@ -323,6 +324,8 @@ function DashboardApp() {
         selectedTraceId={selectedTraceId}
         activeView={viewMode}
         onSelectView={(mode) => setViewMode(mode)}
+        isTraceListVisible={isTraceListVisible}
+        onToggleTraceList={() => setIsTraceListVisible((prev) => !prev)}
         projects={projects}
         selectedProject={selectedProject}
         onSelectProject={(proj) => setSelectedProject(proj)}
@@ -393,15 +396,44 @@ function DashboardApp() {
           />
         ) : (
           <>
-            {/* Left Sidebar: Traces List */}
-            <TraceList
-              traces={traces}
-              selectedTraceId={selectedTraceId}
-              onSelectTrace={(id) => setSelectedTraceId(id)}
-              isLoading={isTracesLoading}
-              error={tracesError}
-              onRefresh={fetchTraces}
-            />
+            {/* Left Sidebar: Traces List (Collapsible) */}
+            {isTraceListVisible ? (
+              <TraceList
+                traces={traces}
+                selectedTraceId={selectedTraceId}
+                onSelectTrace={(id) => setSelectedTraceId(id)}
+                isLoading={isTracesLoading}
+                error={tracesError}
+                onRefresh={fetchTraces}
+                onToggleCollapse={() => setIsTraceListVisible(false)}
+              />
+            ) : (
+              <aside
+                data-testid="collapsed-traces-bar"
+                className="w-10 h-full bg-slate-900 border-r border-slate-800 shrink-0 flex flex-col items-center py-3 select-none"
+              >
+                <button
+                  onClick={() => setIsTraceListVisible(true)}
+                  data-testid="expand-traces-btn"
+                  className="p-1.5 text-slate-400 hover:text-purple-300 hover:bg-slate-800 rounded-lg border border-slate-800 hover:border-purple-800/60 transition flex flex-col items-center gap-2 group"
+                  title="Expand Traces Sidebar"
+                  aria-label="Expand Traces Sidebar"
+                >
+                  <svg
+                    className="w-4 h-4 text-slate-400 group-hover:text-purple-300 transition-transform group-hover:translate-x-0.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                  <span className="[writing-mode:vertical-rl] text-[10px] uppercase font-mono tracking-wider font-semibold text-slate-400 group-hover:text-purple-300 mt-2">
+                    Traces ({traces.length})
+                  </span>
+                </button>
+              </aside>
+            )}
 
             {/* Center Canvas / Detail Area */}
             <main className="flex-1 flex flex-col min-w-0 bg-slate-950 relative overflow-hidden">
