@@ -35,6 +35,8 @@ export interface UserProfile {
 export interface AuthResponse {
   user: User;
   message: string;
+  access_token?: string;
+  token_type?: string;
   csrf_token?: string;
   api_key?: string; // Returned ONCE upon registration
 }

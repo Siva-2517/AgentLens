@@ -19,15 +19,30 @@ import {
   ApiKeyCreatePayload,
 } from '../types/auth';
 
-import { setCsrfToken, getCsrfToken, getEffectiveCsrfToken } from './csrf';
+import {
+  setCsrfToken,
+  getCsrfToken,
+  getEffectiveCsrfToken,
+  setAccessToken,
+  getAccessToken,
+} from './csrf';
 
-export { setCsrfToken, getCsrfToken, getEffectiveCsrfToken };
+export {
+  setCsrfToken,
+  getCsrfToken,
+  getEffectiveCsrfToken,
+  setAccessToken,
+  getAccessToken,
+};
 
 /**
  * Authenticate dashboard user with email and password.
  */
 export async function loginUser(credentials: LoginCredentials): Promise<AuthResponse> {
   const response = await apiClient.post<AuthResponse>('/auth/login', credentials);
+  if (response.data.access_token) {
+    setAccessToken(response.data.access_token);
+  }
   if (response.data.csrf_token) {
     setCsrfToken(response.data.csrf_token);
   }
@@ -39,6 +54,9 @@ export async function loginUser(credentials: LoginCredentials): Promise<AuthResp
  */
 export async function registerUser(credentials: RegisterCredentials): Promise<AuthResponse> {
   const response = await apiClient.post<AuthResponse>('/auth/register', credentials);
+  if (response.data.access_token) {
+    setAccessToken(response.data.access_token);
+  }
   if (response.data.csrf_token) {
     setCsrfToken(response.data.csrf_token);
   }
@@ -46,10 +64,13 @@ export async function registerUser(credentials: RegisterCredentials): Promise<Au
 }
 
 /**
- * Refresh authenticated session using HttpOnly refresh cookie.
+ * Refresh authenticated session using HttpOnly refresh cookie or Bearer header.
  */
-export async function refreshSession(): Promise<{ message: string; csrf_token: string }> {
-  const response = await apiClient.post<{ message: string; csrf_token: string }>('/auth/refresh');
+export async function refreshSession(): Promise<{ message: string; access_token?: string; csrf_token?: string }> {
+  const response = await apiClient.post<{ message: string; access_token?: string; csrf_token?: string }>('/auth/refresh');
+  if (response.data.access_token) {
+    setAccessToken(response.data.access_token);
+  }
   if (response.data.csrf_token) {
     setCsrfToken(response.data.csrf_token);
   }
@@ -57,13 +78,14 @@ export async function refreshSession(): Promise<{ message: string; csrf_token: s
 }
 
 /**
- * Log out user and clear HttpOnly session cookies on server.
+ * Log out user and clear session credentials.
  */
 export async function logoutUser(): Promise<{ message: string }> {
   try {
     const response = await apiClient.post<{ message: string }>('/auth/logout');
     return response.data;
   } finally {
+    setAccessToken(null);
     setCsrfToken(null);
   }
 }

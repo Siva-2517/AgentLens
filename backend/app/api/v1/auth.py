@@ -166,6 +166,8 @@ async def register(
     return AuthResponse(
         user=UserResponse.model_validate(user),
         message="Registration successful",
+        access_token=access_token,
+        token_type="bearer",
         csrf_token=csrf_token,
         api_key=raw_key,  # Returned ONCE
     )
@@ -210,6 +212,8 @@ async def login(
     return AuthResponse(
         user=UserResponse.model_validate(user),
         message="Login successful",
+        access_token=access_token,
+        token_type="bearer",
         csrf_token=csrf_token,
         api_key=None,
     )
@@ -278,6 +282,8 @@ async def refresh_session(
 
     return {
         "message": "Token refreshed successfully",
+        "access_token": new_access_token,
+        "token_type": "bearer",
         "csrf_token": new_csrf_token,
     }
 

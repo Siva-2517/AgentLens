@@ -138,6 +138,11 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "CRITICAL SECURITY ERROR: Production database must be PostgreSQL (got non-PostgreSQL URL)."
                 )
+            # Auto-enforce cross-origin cookie security in production
+            if not self.cookie_secure:
+                self.cookie_secure = True
+            if self.cookie_samesite == "lax":
+                self.cookie_samesite = "none"
 
             # Explicitly reject insecure SSL parameters
             insecure_ssl_params = ("sslmode=disable", "sslmode=allow", "ssl=false", "ssl=0")

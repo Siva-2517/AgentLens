@@ -11,7 +11,7 @@ import {
   TraceIndexingResponse,
   FailureSearchParams,
 } from '../types/failureSearch';
-import { getEffectiveCsrfToken, setCsrfToken } from './csrf';
+import { getEffectiveCsrfToken, setCsrfToken, getAccessToken, setAccessToken } from './csrf';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || '/api/v1';
@@ -37,6 +37,7 @@ export function onSessionExpired(listener: SessionExpiredListener): () => void {
 }
 
 function notifySessionExpired(): void {
+  setAccessToken(null);
   sessionExpiredListeners.forEach((fn) => {
     try {
       fn();
@@ -46,8 +47,15 @@ function notifySessionExpired(): void {
   });
 }
 
-// Request interceptor: attach X-CSRF-Token on state-changing requests
+// Request interceptor: attach Bearer token and X-CSRF-Token on state-changing requests
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  // 1. Attach Bearer authorization header if access token exists
+  const token = getAccessToken();
+  if (token && config.headers && !config.headers.Authorization) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  // 2. Attach X-CSRF-Token on state-changing requests
   const method = config.method?.toUpperCase();
   if (method && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
     const csrfToken = getEffectiveCsrfToken();

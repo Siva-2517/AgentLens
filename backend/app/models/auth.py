@@ -86,6 +86,8 @@ class AuthResponse(BaseModel):
 
     user: UserResponse
     message: str
+    access_token: Optional[str] = None
+    token_type: str = "bearer"
     csrf_token: Optional[str] = None
     api_key: Optional[str] = Field(
         None,
