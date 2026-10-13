@@ -48,6 +48,7 @@ class Settings(BaseSettings):
 
     # Security Configuration (Phase 17 & Phase 19B)
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_origin_regex: str | None = r"^https://.*\.vercel\.app$"
     max_event_batch_size: int = 1000
     sql_echo: bool = False
 

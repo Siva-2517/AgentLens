@@ -71,19 +71,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Parse configurable CORS origins from environment
+# Parse configurable CORS origins and regex from environment
 configured_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 if not configured_origins:
     configured_origins = ["http://localhost:5173", "http://localhost:3000"]
 
 allow_credentials = "*" not in configured_origins
 
+cors_kwargs: dict = {
+    "allow_origins": configured_origins,
+    "allow_credentials": allow_credentials,
+    "allow_methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    "allow_headers": ["*"],
+}
+if getattr(settings, "cors_origin_regex", None):
+    cors_kwargs["allow_origin_regex"] = settings.cors_origin_regex
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=configured_origins,
-    allow_credentials=allow_credentials,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["*"],
+    **cors_kwargs,
 )
 
 
@@ -128,10 +134,18 @@ async def global_exception_handler(request: Request, exc: Exception):
         f"Unhandled server error on {request.method} {request.url.path} (request_id={get_correlation_id()}): "
         f"{mask_connection_string(str(exc))}"
     )
+    headers = {"X-Request-ID": get_correlation_id()}
+    origin = request.headers.get("origin")
+    if origin:
+        regex_match = bool(settings.cors_origin_regex and re.match(settings.cors_origin_regex, origin))
+        if origin in configured_origins or regex_match:
+            headers["Access-Control-Allow-Origin"] = origin
+            headers["Access-Control-Allow-Credentials"] = "true"
+
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error occurred."},
-        headers={"X-Request-ID": get_correlation_id()},
+        headers=headers,
     )
 
 
