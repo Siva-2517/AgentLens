@@ -1,32 +1,47 @@
 # AgentLens Python SDK
 
-Python SDK for integrating AgentLens observability into AI agents.
+Official Python SDK for integrating AgentLens observability, deterministic anomaly detection, and AI root-cause investigation into AI agents.
+
+- 🌐 **Live Cloud Dashboard**: [https://agent-lens-kappa.vercel.app](https://agent-lens-kappa.vercel.app)
+- ⚡ **Production API**: [https://agentlens-backend-ofqg.onrender.com](https://agentlens-backend-ofqg.onrender.com)
+
+---
 
 ## Installation
 
+### From GitHub (Direct):
 ```bash
+pip install git+https://github.com/Siva-2517/AgentLens.git#subdirectory=sdk
+```
+
+### From Local Source:
+```bash
+cd sdk
 pip install -e .
 ```
 
-## Development Installation
-
+### Development Installation:
 ```bash
 pip install -e ".[dev]"
 ```
 
+---
+
 ## Quick Start
 
 ```python
+import os
 from agentlens import AgentLens, EventType
 
-# Initialize the SDK
+# Initialize the SDK (Live Cloud or Local)
 lens = AgentLens(
-    api_url="http://localhost:8000",
+    api_url="https://agentlens-backend-ofqg.onrender.com",  # Or http://localhost:8000
+    api_key=os.getenv("AGENTLENS_API_KEY", "al_live_your_key_here"),
     project_name="my-ai-agent",
 )
 
 # Use context manager for automatic trace management
-with lens.trace("customer-support-agent"):
+with lens.trace("customer-support-agent") as trace_id:
     # Your agent code here
     user_input = "How do I reset my password?"
     

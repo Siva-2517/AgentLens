@@ -15,23 +15,27 @@ AgentLens is a production-grade, full-stack observability, telemetry reconstruct
 
 ---
 
-## 🚀 Live Demo & Links
+## 🚀 Live Production Deployments & Links
 
-- 🌐 **Repository**: [GitHub — Siva-2517/AgentLens](https://github.com/Siva-2517/AgentLens)
-- 🖥️ **Interactive Dashboard**: `http://localhost:5173` (React + Vite)
-- 🔗 **Backend API & Swagger Docs**: `http://localhost:8000/docs` (FastAPI)
+- 🌐 **Live Web Dashboard**: [https://agent-lens-kappa.vercel.app](https://agent-lens-kappa.vercel.app) *(Hosted on Vercel)*
+- ⚡ **Production Backend API**: [https://agentlens-backend-ofqg.onrender.com](https://agentlens-backend-ofqg.onrender.com) *(Hosted on Render)*
+- 📚 **Interactive Swagger API Docs**: [https://agentlens-backend-ofqg.onrender.com/docs](https://agentlens-backend-ofqg.onrender.com/docs)
+- 🐙 **GitHub Repository**: [GitHub — Siva-2517/AgentLens](https://github.com/Siva-2517/AgentLens)
+- 🖥️ **Local Dashboard**: `http://localhost:5173` *(React + Vite)*
+- 🔗 **Local Backend API**: `http://localhost:8000/docs` *(FastAPI)*
 
 ---
 
 ## 📋 Table of Contents
 
 - [Overview](#-overview)
+- [How to Use AgentLens in Your Project](#-how-to-use-agentlens-in-your-project)
 - [Key Features](#-key-features)
 - [AgentLens Pipeline & Architecture](#-agentlens-pipeline--architecture)
 - [Database Schema & Entity Relationships](#-database-schema--entity-relationships)
 - [Technology Stack](#-technology-stack)
 - [Data Security & Validation](#-data-security--validation)
-- [Installation & Quick Start](#-installation--quick-start)
+- [Installation & Quick Start (Local Setup)](#-installation--quick-start)
 - [Environment Variables](#-environment-variables)
 - [API Endpoints Specification](#-api-endpoints-specification)
 - [Model Context Protocol (MCP)](#-model-context-protocol-mcp)
@@ -60,6 +64,122 @@ AgentLens provides continuous, automated, multi-tiered observability:
 5. **AI Root-Cause Investigator**: Dual-provider AI reasoning engine (Groq Llama 3.3 70B & Gemini 2.5 Flash) isolates the earliest root cause, gathers supporting evidence, and provides actionable engineering remedies.
 6. **Vector Failure Search**: Uses PostgreSQL `pgvector` to index failure embeddings and discover similar historical incidents via natural language semantic queries.
 7. **Model Context Protocol (MCP)**: Exposes 7 read-only debugging and investigation tools directly to AI assistants like Claude Desktop and Cursor.
+
+---
+
+## 📦 How to Use AgentLens in Your Project
+
+Follow these steps to observe, trace, and debug your AI agents in real time using the live deployment:
+
+### 1. Get Your API Key & Project Identifier
+1. Open the live dashboard: **[https://agent-lens-kappa.vercel.app](https://agent-lens-kappa.vercel.app)**
+2. Sign in or register a new account.
+3. In the top navigation bar, click **API Keys**.
+4. Click **Create New Key** and copy your generated key (`al_live_...`).
+5. Note your **Project Slug** (e.g. `default-project`) from the project selector.
+
+### 2. Install the AgentLens Python SDK
+Install the SDK directly from GitHub into your agent's virtual environment:
+
+```bash
+pip install git+https://github.com/Siva-2517/AgentLens.git#subdirectory=sdk
+```
+
+*(Alternatively, if you cloned the repository locally: `pip install -e ./sdk`)*
+
+### 3. Instrument Your Agent Code
+Wrap your agent run with `lens.trace(...)` and log LLM decisions, tool calls, and state transitions:
+
+```python
+import os
+from agentlens import AgentLens, EventType
+
+# 1. Initialize the SDK pointing to the live production backend
+lens = AgentLens(
+    api_url="https://agentlens-backend-ofqg.onrender.com",  # Or http://localhost:8000 for local dev
+    api_key=os.getenv("AGENTLENS_API_KEY", "al_live_your_api_key_here"),
+    project_name="my-first-agent"                           # Matches your project in the dashboard
+)
+
+# 2. Use the context manager to automatically manage trace lifecycles
+with lens.trace("Customer Support Assistant") as trace_id:
+    print(f"Tracking agent execution live! Trace ID: {trace_id}")
+
+    # Record LLM reasoning / prompt
+    lens.create_event(
+        EventType.LLM_CALL,
+        data={
+            "model": "gpt-4o",
+            "prompt": "User query: Where is my order #ORD-1001?",
+        }
+    )
+
+    # Record tool execution (e.g., database lookup, external API call)
+    lens.create_event(
+        EventType.TOOL_CALL,
+        data={
+            "tool": "check_order_status",
+            "input": {"order_id": "ORD-1001"},
+        }
+    )
+
+    # Record tool response
+    lens.create_event(
+        EventType.TOOL_RESPONSE,
+        data={
+            "status": "in_transit",
+            "carrier": "FedEx",
+            "expected_delivery": "Tomorrow by 5 PM"
+        }
+    )
+
+    # Record LLM final response
+    lens.create_event(
+        EventType.LLM_RESPONSE,
+        data={"response": "Your order #ORD-1001 is in transit via FedEx and will arrive tomorrow."}
+    )
+
+# When the context block exits:
+# - An AGENT_END event is automatically dispatched
+# - The trace is marked as 'completed' (or 'failed' if an unhandled exception occurred)
+# - All telemetry is safely flushed
+```
+
+### 4. Watch Live Real-Time Telemetry & AI Diagnosis
+1. Return to the dashboard at **[https://agent-lens-kappa.vercel.app](https://agent-lens-kappa.vercel.app)**.
+2. Select your project from the top bar.
+3. Your new trace will appear in the **Traces** list with a yellow `running` badge.
+4. Click on the trace to watch nodes, edges, latency, and payloads animate **live in real time** via WebSockets!
+5. If an agent crashes or encounters an anomaly, click **Investigate with AI** to view a root-cause diagnosis, cited evidence IDs, and recommended code fixes powered by Groq Llama 3.3 and Gemini Flash.
+
+### 5. Alternative: Direct REST API (For Node.js, Go, LangChain JS, or cURL)
+If you prefer not to use the Python SDK, you can send HTTP POST requests directly to the backend:
+
+```bash
+# 1. Initialize a Trace
+curl -X POST https://agentlens-backend-ofqg.onrender.com/api/v1/traces \
+  -H "Authorization: Bearer al_live_your_key" \
+  -H "X-AgentLens-Project: my-first-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trace_id": "custom-trace-001",
+    "name": "Order Tracking Workflow",
+    "status": "running"
+  }'
+
+# 2. Ingest an Event
+curl -X POST https://agentlens-backend-ofqg.onrender.com/api/v1/events/single \
+  -H "Authorization: Bearer al_live_your_key" \
+  -H "X-AgentLens-Project: my-first-agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event_id": "evt-001",
+    "trace_id": "custom-trace-001",
+    "event_type": "LLM_CALL",
+    "timestamp": "2026-10-14T12:00:00Z",
+    "data": {"model": "gpt-4o", "prompt": "Process user input"}
+  }'
+```
 
 ---
 
