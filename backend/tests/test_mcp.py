@@ -379,7 +379,7 @@ async def test_investigate_trace_success(mcp_db_override):
         ],
         analyzed_findings=["find-card"],
         analyzed_event_ids=["ev-tool-pay"],
-        model="gemini-1.5-flash",
+        model="gemini-2.5-flash",
         created_at=datetime.now(timezone.utc),
     )
 

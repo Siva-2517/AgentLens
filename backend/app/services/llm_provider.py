@@ -302,7 +302,7 @@ class GeminiInvestigationProvider(InvestigationLLMProvider):
         temperature: float = 0.0,
     ):
         self._api_key = api_key or settings.gemini_api_key
-        self._model = model or settings.llm_model or "gemini-1.5-flash"
+        self._model = model or settings.llm_model or "gemini-2.5-flash"
         self._temperature = temperature
 
     @property
