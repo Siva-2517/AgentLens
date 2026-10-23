@@ -2,7 +2,7 @@
 
 import pytest
 
-from agentlens import context
+from agentlensx import context
 
 
 def test_trace_context_default():

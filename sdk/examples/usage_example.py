@@ -1,6 +1,6 @@
 """Example usage of the AgentLens SDK."""
 
-from agentlens import AgentLens, EventType
+from agentlensx import AgentLens, EventType
 
 
 def simple_agent_example():

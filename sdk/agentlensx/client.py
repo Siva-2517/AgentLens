@@ -6,16 +6,16 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Generator, Optional
 
-from agentlens.config import AgentLensConfig
-from agentlens.context import (
+from agentlensx.config import AgentLensConfig
+from agentlensx.context import (
     clear_context,
     get_current_trace_id,
     get_parent_event_id,
     set_current_trace_id,
     set_parent_event_id,
 )
-from agentlens.exporter import HTTPExporter
-from agentlens.types import Event, EventType, Trace
+from agentlensx.exporter import HTTPExporter
+from agentlensx.types import Event, EventType, Trace
 
 logger = logging.getLogger(__name__)
 

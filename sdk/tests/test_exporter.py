@@ -3,9 +3,9 @@
 import pytest
 from unittest.mock import Mock, patch
 
-from agentlens.config import AgentLensConfig
-from agentlens.exporter import HTTPExporter
-from agentlens.types import Event, EventType, Trace
+from agentlensx.config import AgentLensConfig
+from agentlensx.exporter import HTTPExporter
+from agentlensx.types import Event, EventType, Trace
 
 
 @pytest.fixture

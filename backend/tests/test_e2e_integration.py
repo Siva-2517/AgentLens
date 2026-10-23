@@ -17,8 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.main import app
 from app.db import get_db
 from app.db.models import Base, TraceModel, EventModel
-from agentlens import AgentLens
-from agentlens.types import EventType
+from agentlensx import AgentLens
+from agentlensx.types import EventType
 
 
 # ---------------------------------------------------------------------------
@@ -258,9 +258,9 @@ async def test_sdk_creates_trace_and_events_via_api(client, test_db):
     DB state via the async test_db session.
     """
     # Import SDK
-    from agentlens.types import Trace, Event, EventType as ET
-    from agentlens.exporter import HTTPExporter
-    from agentlens.config import AgentLensConfig
+    from agentlensx.types import Trace, Event, EventType as ET
+    from agentlensx.exporter import HTTPExporter
+    from agentlensx.config import AgentLensConfig
 
     trace_id = "sdk-flow-trace-001"
 

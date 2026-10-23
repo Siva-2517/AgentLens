@@ -1,8 +1,8 @@
 """AgentLens Python SDK for AI agent observability."""
 
-from agentlens.client import AgentLens
-from agentlens.config import AgentLensConfig
-from agentlens.types import Event, EventType, Trace
+from agentlensx.client import AgentLens
+from agentlensx.config import AgentLensConfig
+from agentlensx.types import Event, EventType, Trace
 
 __version__ = "0.1.0"
 

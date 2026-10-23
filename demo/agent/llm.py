@@ -13,7 +13,7 @@ try:
 except ImportError:
     ChatGroq = None
 
-from agentlens.types import EventType
+from agentlensx.types import EventType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

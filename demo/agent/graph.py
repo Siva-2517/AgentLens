@@ -17,7 +17,7 @@ from demo.agent.tools import (
     get_order,
 )
 from demo.agent.llm import get_llm
-from agentlens.types import EventType
+from agentlensx.types import EventType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

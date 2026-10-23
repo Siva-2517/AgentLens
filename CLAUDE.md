@@ -204,7 +204,7 @@ AgentLens/
 │   ├── package.json
 │   └── vite.config.ts
 ├── sdk/
-│   ├── agentlens/        # Python SDK package
+│   ├── agentlensx/       # Python SDK package
 │   ├── tests/
 │   └── setup.py
 ├── demo/                 # Demo AI agent

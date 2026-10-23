@@ -79,7 +79,13 @@ Follow these steps to observe, trace, and debug your AI agents in real time usin
 5. Note your **Project Slug** (e.g. `default-project`) from the project selector.
 
 ### 2. Install the AgentLens Python SDK
-Install the SDK directly from GitHub into your agent's virtual environment:
+Install the SDK from PyPI:
+
+```bash
+pip install agentlensx
+```
+
+Or directly from GitHub into your agent's virtual environment:
 
 ```bash
 pip install git+https://github.com/Siva-2517/AgentLens.git#subdirectory=sdk
@@ -92,7 +98,7 @@ Wrap your agent run with `lens.trace(...)` and log LLM decisions, tool calls, an
 
 ```python
 import os
-from agentlens import AgentLens, EventType
+from agentlensx import AgentLens, EventType
 
 # 1. Initialize the SDK pointing to the live production backend
 lens = AgentLens(
@@ -328,7 +334,7 @@ curl -X POST https://agentlens-backend-ofqg.onrender.com/api/v1/events/single \
 - **Vitest & React Testing Library** (Frontend unit and component test suites)
 
 ### Python SDK
-- **agentlens**: Lightweight zero-dependency core client featuring background daemon flushing, exponential backoff, and thread-safe context stacks.
+- **agentlensx**: Lightweight zero-dependency core client featuring background daemon flushing, exponential backoff, and thread-safe context stacks.
 
 ---
 
@@ -461,10 +467,10 @@ Open **`http://localhost:5173`** and click the generated trace ID to observe nod
 | `AGENTLENS_API_KEY` | **Yes** | Live API Key created in Dashboard (`al_live_...`) | `al_live_...` |
 | `AGENTLENS_PROJECT_NAME` | Optional| Project to attach traces to | `Default Project` |
 
-### Python SDK (`agentlens`)
+### Python SDK (`agentlensx`)
 The SDK is a pure library that does not depend on any `.env` file on disk. Configure via constructor parameters or process environment variables:
 ```python
-from agentlens import AgentLens
+from agentlensx import AgentLens
 
 # Constructor parameters (recommended):
 client = AgentLens(
@@ -563,7 +569,7 @@ AgentLens/
 │   └── tailwind.config.js
 │
 ├── sdk/
-│   ├── agentlens/           # Python SDK source (client, context, exporter, types)
+│   ├── agentlensx/          # Python SDK source (client, context, exporter, types)
 │   ├── examples/            # usage_example.py (reference implementation)
 │   ├── tests/               # SDK pytest test suites (43 tests)
 │   └── setup.py

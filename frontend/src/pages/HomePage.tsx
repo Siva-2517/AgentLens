@@ -424,9 +424,9 @@ export function HomePage({ onLogin, onRegister }: HomePageProps) {
             {activeCodeTab === 'sdk' && (
               <pre className="text-purple-300">
                 <span className="text-slate-500"># 1. Install SDK</span>{'\n'}
-                <span className="text-cyan-400">pip install</span> agentlens{'\n\n'}
+                <span className="text-cyan-400">pip install</span> agentlensx{'\n\n'}
                 <span className="text-slate-500"># 2. Trace your agent execution</span>{'\n'}
-                <span className="text-pink-400">from</span> agentlens <span className="text-pink-400">import</span> AgentLens, EventType{'\n\n'}
+                <span className="text-pink-400">from</span> agentlensx <span className="text-pink-400">import</span> AgentLens, EventType{'\n\n'}
                 lens = AgentLens(project_name=<span className="text-emerald-300">"customer-support-agent"</span>){'\n\n'}
                 <span className="text-pink-400">with</span> lens.trace(<span className="text-emerald-300">"order-inquiry"</span>) <span className="text-pink-400">as</span> trace_id:{'\n'}
                 {'    '}lens.create_event(EventType.LLM_CALL, data=&#123;<span className="text-emerald-300">"prompt"</span>: user_query&#125;){'\n'}

@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pytest
 
-from agentlens.types import Event, EventType, Trace
+from agentlensx.types import Event, EventType, Trace
 
 
 def test_event_type_enum():

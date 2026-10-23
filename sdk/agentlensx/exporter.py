@@ -5,8 +5,8 @@ from typing import List
 
 import httpx
 
-from agentlens.config import AgentLensConfig
-from agentlens.types import Event, Trace
+from agentlensx.config import AgentLensConfig
+from agentlensx.types import Event, Trace
 
 logger = logging.getLogger(__name__)
 

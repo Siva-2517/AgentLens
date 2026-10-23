@@ -2,8 +2,8 @@
 
 import pytest
 
-from agentlens import AgentLens, EventType
-from agentlens.context import get_current_trace_id
+from agentlensx import AgentLens, EventType
+from agentlensx.context import get_current_trace_id
 
 
 @pytest.fixture

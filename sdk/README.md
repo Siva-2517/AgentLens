@@ -1,6 +1,6 @@
 # AgentLens Python SDK
 
-Official Python SDK for integrating AgentLens observability, deterministic anomaly detection, and AI root-cause investigation into AI agents.
+Official Python SDK (`agentlensx`) for integrating AgentLens observability, deterministic anomaly detection, and AI root-cause investigation into AI agents.
 
 - 🌐 **Live Cloud Dashboard**: [https://agent-lens-kappa.vercel.app](https://agent-lens-kappa.vercel.app)
 - ⚡ **Production API**: [https://agentlens-backend-ofqg.onrender.com](https://agentlens-backend-ofqg.onrender.com)
@@ -8,6 +8,11 @@ Official Python SDK for integrating AgentLens observability, deterministic anoma
 ---
 
 ## Installation
+
+### From PyPI:
+```bash
+pip install agentlensx
+```
 
 ### From GitHub (Direct):
 ```bash
@@ -31,7 +36,7 @@ pip install -e ".[dev]"
 
 ```python
 import os
-from agentlens import AgentLens, EventType
+from agentlensx import AgentLens, EventType
 
 # Initialize the SDK (Live Cloud or Local)
 lens = AgentLens(
@@ -149,7 +154,7 @@ with lens.trace("agent-with-error"):
 ### Configuration
 
 ```python
-from agentlens import AgentLens, AgentLensConfig
+from agentlensx import AgentLens, AgentLensConfig
 
 config = AgentLensConfig(
     api_url="http://localhost:8000",
@@ -209,7 +214,7 @@ Main client class for the SDK.
 All available event types are in the `EventType` enum:
 
 ```python
-from agentlens import EventType
+from agentlensx import EventType
 
 EventType.AGENT_START
 EventType.LLM_CALL
@@ -233,7 +238,7 @@ pytest
 Run with coverage:
 
 ```bash
-pytest --cov=agentlens --cov-report=html
+pytest --cov=agentlensx --cov-report=html
 ```
 
 ## Architecture
@@ -269,15 +274,15 @@ pytest
 Format code:
 
 ```bash
-black agentlens tests
+black agentlensx tests
 ```
 
 Lint:
 
 ```bash
-ruff check agentlens tests
+ruff check agentlensx tests
 ```
 
 ## License
 
-*To be determined*
+Distributed under the [MIT License](LICENSE). Copyright (c) 2026 Siva.

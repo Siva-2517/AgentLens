@@ -2,7 +2,7 @@
 
 import pytest
 
-from agentlens.config import AgentLensConfig
+from agentlensx.config import AgentLensConfig
 
 
 def test_config_defaults():

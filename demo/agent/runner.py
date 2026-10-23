@@ -10,8 +10,8 @@ from typing import Optional
 from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphInterrupt
 
-from agentlens import AgentLens, EventType
-from agentlens.context import (
+from agentlensx import AgentLens, EventType
+from agentlensx.context import (
     clear_context,
     get_current_trace_id,
     get_parent_event_id,
