@@ -491,6 +491,7 @@ client = AgentLens(
 | GET | `/api/v1/traces` | Protected | List traces with pagination, status, and project filters |
 | GET | `/api/v1/traces/{trace_id}` | Protected | Fetch reconstructed trace tree with depth & duration metrics |
 | POST | `/api/v1/events` | Protected | Ingest batch of execution events (up to 1,000) |
+| POST | `/api/v1/events/single` | Protected | Ingest a single execution event |
 
 ### Graph, Findings & Investigation (`/api/v1`)
 | Method | Endpoint | Access | Description |
@@ -548,7 +549,7 @@ AgentLens/
 │   │   ├── services/        # 13 core business services (reconstruction, detector, AI, search)
 │   │   ├── config.py        # Centralized settings & environment loader
 │   │   └── main.py          # FastAPI application entry point & lifecycle hooks
-│   ├── tests/               # 13 backend pytest test files (210 automated tests)
+│   ├── tests/               # 25 backend pytest test files (324 automated tests)
 │   ├── init_db.py           # CLI database tables initialization utility
 │   ├── stream_live_demo.py  # Interactive real-time event streaming script
 │   ├── validate_phase18.py  # 21-point comprehensive end-to-end validator
@@ -563,7 +564,7 @@ AgentLens/
 │   │   ├── utils/           # Graph adapters, formatters, and color utilities
 │   │   ├── App.tsx          # Main dashboard shell, state management, and split-pane layout
 │   │   └── main.tsx         # React entry point
-│   ├── src/__tests__/       # 11 Vitest frontend component test suites (59 tests)
+│   ├── src/__tests__/       # 15 Vitest frontend component test suites (83 tests)
 │   ├── package.json
 │   ├── vite.config.ts
 │   └── tailwind.config.js
@@ -601,10 +602,10 @@ AgentLens is architected for zero-docker cloud deployment:
 
 ## 🧪 Verification & Automated Test Suite
 
-AgentLens maintains high test coverage with **346 total automated tests** across all tiers:
+AgentLens maintains high test coverage with **484 total automated tests** across all tiers:
 
 ```powershell
-# 1. Run Backend Pytest Suite (210 tests)
+# 1. Run Backend Pytest Suite (324 tests)
 python -m pytest backend/tests/ -q
 
 # 2. Run Python SDK Pytest Suite (43 tests)
@@ -613,7 +614,7 @@ python -m pytest sdk/tests/ -q
 # 3. Run Demo Agent Pytest Suite (34 tests)
 python -m pytest demo/ -q
 
-# 4. Run Frontend Vitest Suite (59 tests)
+# 4. Run Frontend Vitest Suite (83 tests)
 npm --prefix frontend test -- --run
 
 # 5. Build Production Frontend Bundle

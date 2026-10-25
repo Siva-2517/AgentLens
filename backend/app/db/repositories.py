@@ -215,7 +215,7 @@ class ProjectRepository:
             stmt = stmt.where(ProjectModel.organization_id == organization_id)
         stmt = stmt.where(ProjectModel.slug == slug)
         res = await self.session.execute(stmt)
-        existing = res.scalar_one_or_none()
+        existing = res.scalars().first()
         if existing:
             return existing
 
@@ -232,6 +232,7 @@ class ProjectRepository:
             name=name,
             slug=slug,
             description="Default workspace project",
+            project_id=DEFAULT_PROJECT_ID if slug == "default" else None,
         )
 
 
@@ -342,6 +343,7 @@ class TraceRepository:
                     )
                 else:
                     raise ValueError(f"Project '{target_project_id}' not found")
+            target_project_id = project.id
             if not resolved_project_name:
                 resolved_project_name = project.name
         else:
@@ -549,9 +551,6 @@ class EventRepository:
 
         self.session.add_all(db_events)
         await self.session.flush()
-
-        for db_event in db_events:
-            await self.session.refresh(db_event)
 
         logger.info(f"Created batch of {len(db_events)} events in database")
         return db_events

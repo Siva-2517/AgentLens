@@ -153,6 +153,8 @@ class EventService:
             )
             from app.services.realtime_publisher import realtime_publisher
 
+            messages_to_publish = []
+            trace_id = db_events[0].trace_id if db_events else None
             for db_event, event in zip(db_events, events):
                 event_msg = EventCreatedMessage(
                     trace_id=db_event.trace_id,
@@ -166,20 +168,21 @@ class EventService:
                         metadata=db_event.metadata_ or {},
                     ),
                 )
-                await realtime_publisher.publish(db_event.trace_id, event_msg)
+                messages_to_publish.append(event_msg)
 
                 if db_event.event_type == "AGENT_END":
                     status_val = "completed"
                     if isinstance(db_event.data, dict) and db_event.data.get("status") in ("failed", "error"):
                         status_val = "failed"
-                    await realtime_publisher.publish(
-                        db_event.trace_id,
+                    messages_to_publish.append(
                         TraceCompletedMessage(
                             trace_id=db_event.trace_id,
                             status=status_val,
                             end_time=db_event.timestamp,
-                        ),
+                        )
                     )
+            if trace_id and messages_to_publish:
+                await realtime_publisher.publish_batch(trace_id, messages_to_publish)
         except Exception as e:
             logger.warning(f"Failed to publish realtime batch notifications: {e}")
 

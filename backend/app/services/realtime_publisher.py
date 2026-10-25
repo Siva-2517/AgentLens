@@ -94,6 +94,50 @@ class RealtimePublisher:
 
         return redis_success
 
+    async def publish_batch(self, trace_id: str, messages: list[RealtimeMessage]) -> bool:
+        """Publish a batch of real-time messages using Redis pipeline for high throughput."""
+        if not messages:
+            return True
+
+        channel = f"agentlens:trace:{trace_id}"
+        redis_success = False
+
+        # 1. Attempt Redis pipelined publication
+        try:
+            r = await self._get_redis()
+            if r is not None:
+                pipe = r.pipeline(transaction=False)
+                for msg in messages:
+                    payload_json = msg.model_dump_json()
+                    envelope = json.dumps({"server_id": SERVER_INSTANCE_ID, "payload": payload_json})
+                    pipe.publish(channel, envelope)
+                await pipe.execute()
+                redis_success = True
+        except Exception as e:
+            logger.warning(
+                f"Redis real-time batch publish failed for channel '{channel}': {e}. "
+                "Degrading gracefully without affecting HTTP ingestion."
+            )
+            if self._redis is not None:
+                try:
+                    await self._redis.aclose()
+                except Exception:
+                    pass
+            self._redis = None
+
+        from app.services.metrics import metrics_collector
+        metrics_collector.record_redis_publish(success=redis_success)
+
+        # 2. Also notify local in-memory subscribers
+        try:
+            from app.services.realtime_service import realtime_service
+            for msg in messages:
+                await realtime_service.broadcast_locally(trace_id, msg.model_dump_json())
+        except Exception as e:
+            logger.debug(f"Local realtime broadcast exception: {e}")
+
+        return redis_success
+
     async def close(self):
         """Clean up Redis connection."""
         if self._redis is not None:
